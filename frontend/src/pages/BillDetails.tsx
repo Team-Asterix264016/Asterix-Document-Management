@@ -8,6 +8,7 @@ import { apiErrorMessage } from "../api/client";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Spinner } from "../components/ui/Spinner";
 import { formatDate, formatDateTime, formatINR, nameOf, subsystemName } from "../utils/format";
+import { ArrowLeft, CheckCircle2, ExternalLink, FileText, XCircle } from "lucide-react";
 
 export function BillDetails() {
   const { id } = useParams<{ id: string }>();
@@ -66,11 +67,15 @@ export function BillDetails() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <button onClick={() => navigate(-1)} className="mb-2 text-sm text-ink-500 hover:text-ink-900">
-            ← Back
+        <div className="min-w-0">
+          <button
+            onClick={() => navigate(-1)}
+            className="mb-2 flex items-center gap-1 text-sm text-ink-500 transition-colors hover:text-ink-900"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+            Back
           </button>
-          <h1 className="text-xl font-semibold text-ink-900">{bill.vendor ?? "Untitled bill"}</h1>
+          <h1 className="truncate text-xl font-semibold text-ink-900">{bill.vendor ?? "Untitled bill"}</h1>
           <p className="text-sm text-ink-500">{subsystemName(bill.subsystem)}</p>
         </div>
         <StatusBadge status={bill.status} />
@@ -91,12 +96,22 @@ export function BillDetails() {
             <div className="flex flex-col gap-2">
               {bill.attachments.map((a, i) =>
                 a.driveUrl ? (
-                  <a key={i} href={a.driveUrl} target="_blank" rel="noreferrer" className="rounded-sm border border-line px-3 py-2 text-sm text-accent hover:bg-canvas">
-                    {a.originalName} ↗
+                  <a
+                    key={i}
+                    href={a.driveUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 items-center gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-accent transition-colors hover:border-accent/40 hover:bg-accent-soft"
+                  >
+                    <FileText className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    <span className="min-w-0 flex-1 truncate">{a.originalName}</span>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
                   </a>
                 ) : (
-                  <div key={i} className="rounded-sm border border-line px-3 py-2 text-sm text-ink-500">
-                    {a.originalName} (evidence syncing)
+                  <div key={i} className="flex min-w-0 items-center gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-500">
+                    <FileText className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    <span className="min-w-0 flex-1 truncate">{a.originalName}</span>
+                    <span className="shrink-0 text-xs">syncing…</span>
                   </div>
                 )
               )}
@@ -107,17 +122,24 @@ export function BillDetails() {
         <div className="card flex flex-col gap-4 p-4">
           <p className="field-label">Bill Information</p>
 
-          <dl className="grid grid-cols-2 gap-y-3 text-sm">
-            <dt className="text-ink-500">Vendor</dt>
-            <dd className="text-right font-medium text-ink-900">{bill.vendor ?? "—"}</dd>
-            <dt className="text-ink-500">Invoice Number</dt>
-            <dd className="text-right font-medium text-ink-900">{bill.invoiceNumber ?? "—"}</dd>
-            <dt className="text-ink-500">Bill Date</dt>
-            <dd className="text-right font-medium text-ink-900">{formatDate(bill.billDate)}</dd>
-            <dt className="text-ink-500">Submitted By</dt>
-            <dd className="text-right font-medium text-ink-900">{nameOf(bill.uploadedBy)}</dd>
-            <dt className="text-ink-500">Description</dt>
-            <dd className="text-right font-medium text-ink-900">{bill.description || "—"}</dd>
+          <dl className="flex flex-col divide-y divide-line text-sm">
+            {[
+              ["Vendor", bill.vendor ?? "—"],
+              ["Invoice Number", bill.invoiceNumber ?? "—"],
+              ["Bill Date", formatDate(bill.billDate)],
+              ["Submitted By", nameOf(bill.uploadedBy)],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between gap-4 py-2 first:pt-0">
+                <dt className="shrink-0 text-ink-500">{label}</dt>
+                <dd className="min-w-0 truncate text-right font-medium text-ink-900">{value}</dd>
+              </div>
+            ))}
+            {bill.description && (
+              <div className="py-2">
+                <dt className="mb-1 text-ink-500">Description</dt>
+                <dd className="font-medium leading-relaxed text-ink-900">{bill.description}</dd>
+              </div>
+            )}
           </dl>
 
           <div className="border-t border-line pt-3">
@@ -169,9 +191,11 @@ export function BillDetails() {
               {!showRejectForm ? (
                 <div className="flex gap-3">
                   <button className="btn-primary flex-1" onClick={handleApprove} disabled={busy}>
+                    <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
                     Accept
                   </button>
                   <button className="btn-danger flex-1" onClick={() => setShowRejectForm(true)} disabled={busy}>
+                    <XCircle className="h-4 w-4" strokeWidth={2} />
                     Reject
                   </button>
                 </div>

@@ -12,7 +12,7 @@ export function StatusBadge({ status }: { status: BillStatus }) {
   const config = STATUS_CONFIG[status];
   return (
     <span className={`badge ${config.bg} ${config.fg}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} aria-hidden />
+      <span className={`h-1.5 w-1.5 rounded-full ${config.dot} ${status === "PROCESSING" ? "animate-pulse" : ""}`} aria-hidden />
       {config.label}
     </span>
   );

@@ -76,10 +76,28 @@ MongoDB Atlas                 Google Drive API            Google Gemini API
 │   │   ├── context/          # Auth Context provider
 │   │   ├── pages/            # Dashboard, Bills, AddBill, BillDetails, Approval, Reports, Analytics, Login
 │   │   └── styles/           # Tailwind CSS index definitions
+├── docs/                     # System documentation & specs
+│   ├── specs/                # Original Word specification documents
+│   ├── ARCHITECTURE.md       # Technical architecture & schema design
+│   ├── API.md                # API reference specification
+│   ├── DEVELOPMENT.md        # Developer workflow & testing guide
+│   └── DEPLOYMENT.md         # Render & Vercel deployment guide
 ├── render.yaml               # Render infrastructure-as-code deployment blueprint
 ├── .env.example              # Environment variables template
 └── README.md                 # System documentation
 ```
+
+---
+
+## Documentation Index
+
+Detailed specifications and guides are organized under the [`docs/`](file:///e:/w/Asterix%20Document%20management/docs) folder:
+
+- 🏗️ **[System Architecture](file:///e:/w/Asterix%20Document%20management/docs/ARCHITECTURE.md)**: Deep dive into services, data schemas, Gemini OCR pipeline, and Google Drive evidence vault.
+- 📡 **[API Specification](file:///e:/w/Asterix%20Document%20management/docs/API.md)**: REST API endpoints reference, request payloads, and response structures.
+- 💻 **[Development Guide](file:///e:/w/Asterix%20Document%20management/docs/DEVELOPMENT.md)**: Local setup, database seeding, environment configuration, and Vitest test execution.
+- 🚀 **[Deployment Guide](file:///e:/w/Asterix%20Document%20management/docs/DEPLOYMENT.md)**: Deployment steps for Render (Backend) and Vercel (Frontend).
+- 📄 **[Requirements Specs](file:///e:/w/Asterix%20Document%20management/docs/specs)**: Original requirement documents (`.docx`).
 
 ---
 
@@ -134,8 +152,12 @@ See `.env.example` at the repository root for required values:
 
 ## Verification & Testing
 
-- **Backend Integration Tests**: 31 Vitest tests passing across 7 test suites (`npm test` in `/backend`).
-- **Frontend Production Build**: Type-checked and compiled clean via Vite (`npm run build` in `/frontend`).
+- **GitHub Actions CI/CD**: Automated pipeline configured in `.github/workflows/ci.yml` running on every push and pull request.
+  - **Backend Test Job**: Executes 31 Vitest integration tests across 7 test suites on Node.js 20.
+  - **Frontend Build Job**: Performs strict TypeScript compilation (`tsc -b`) and Vite production bundling.
+- **Local Testing**:
+  - Backend: `npm test` inside `/backend`
+  - Frontend: `npm run build` inside `/frontend`
 
 ---
 

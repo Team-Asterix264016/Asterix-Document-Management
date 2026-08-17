@@ -15,20 +15,35 @@
   ::selection {
     @apply bg-accent-soft text-ink-900;
   }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-canvas;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-hover;
+    @apply btn bg-accent text-white shadow-subtle hover:bg-accent-hover hover:shadow-card;
   }
   .btn-secondary {
-    @apply btn border border-line bg-surface text-ink-900 hover:bg-canvas;
+    @apply btn border border-line bg-surface text-ink-900 hover:border-ink-300 hover:bg-canvas;
   }
   .btn-danger {
-    @apply btn bg-status-rejected text-white hover:opacity-90;
+    @apply btn bg-status-rejected text-white shadow-subtle hover:opacity-90 hover:shadow-card;
   }
   .btn-ghost {
     @apply btn text-ink-700 hover:bg-canvas;
@@ -38,14 +53,37 @@
     @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-500;
   }
   .field-input {
-    @apply w-full rounded-sm border border-line bg-surface px-3 py-2 text-sm text-ink-900 placeholder:text-ink-300 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
+    @apply w-full rounded-sm border border-line bg-surface px-3 py-2 text-[15px] text-ink-900 transition-colors duration-150 placeholder:text-ink-300 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent sm:text-sm;
   }
 
   .card {
-    @apply rounded border border-line bg-surface shadow-subtle;
+    @apply rounded border border-line bg-surface shadow-subtle transition-shadow duration-200;
+  }
+
+  .card-interactive {
+    @apply card hover:border-ink-300/60 hover:shadow-card active:scale-[0.995];
   }
 
   .badge {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  .skeleton {
+    @apply animate-shimmer rounded-sm bg-line/60;
+    background-image: linear-gradient(90deg, rgba(231, 226, 216, 0.6) 0%, rgba(231, 226, 216, 0.15) 50%, rgba(231, 226, 216, 0.6) 100%);
+    background-size: 800px 100%;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

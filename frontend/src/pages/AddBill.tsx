@@ -8,6 +8,7 @@ import { apiErrorMessage } from "../api/client";
 import { Spinner } from "../components/ui/Spinner";
 import { formatINR } from "../utils/format";
 import type { Bill, BillItem } from "../types";
+import { AlertTriangle, FileText, PenLine, Sparkles, UploadCloud } from "lucide-react";
 
 const PROCESSING_MESSAGES = ["Reading bill…", "Extracting information…", "Identifying subsystem…", "Checking for duplicates…"];
 
@@ -170,9 +171,12 @@ export function AddBill() {
       <div className="mx-auto flex max-w-lg flex-col gap-6">
         <h1 className="text-xl font-semibold text-ink-900">Add Bill</h1>
 
-        <label className="card flex cursor-pointer flex-col items-center gap-3 border-dashed px-6 py-14 text-center transition-colors hover:border-accent">
+        <label className="card flex cursor-pointer flex-col items-center gap-3 border-2 border-dashed px-6 py-14 text-center transition-colors hover:border-accent hover:bg-accent-soft/40 active:scale-[0.995]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+            <UploadCloud className="h-6 w-6" strokeWidth={1.75} />
+          </div>
           <span className="text-sm font-medium text-ink-900">Upload evidence</span>
-          <span className="text-sm text-ink-500">PDF, JPG, or PNG — tap to use your camera or choose a file</span>
+          <span className="max-w-xs text-sm text-ink-500">PDF, JPG, or PNG — tap to use your camera or choose a file</span>
           <input
             ref={fileInputRef}
             type="file"
@@ -193,6 +197,7 @@ export function AddBill() {
         </div>
 
         <button className="btn-secondary" onClick={handleManualEntry} disabled={busy}>
+          <PenLine className="h-4 w-4" strokeWidth={2} />
           Enter bill manually
         </button>
       </div>
@@ -201,9 +206,14 @@ export function AddBill() {
 
   if (step === "processing") {
     return (
-      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 py-20 text-center">
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-5 py-20 text-center">
         <Spinner className="h-8 w-8" />
-        <p className="text-sm font-medium text-ink-900">{PROCESSING_MESSAGES[messageIdx]}</p>
+        <p key={messageIdx} className="animate-fade-up text-sm font-medium text-ink-900">
+          {PROCESSING_MESSAGES[messageIdx]}
+        </p>
+        <div className="h-1 w-40 overflow-hidden rounded-full bg-line">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-accent" />
+        </div>
         <p className="text-sm text-ink-500">This usually takes a few seconds.</p>
       </div>
     );
@@ -228,8 +238,9 @@ export function AddBill() {
           ) : (
             <div className="flex flex-col gap-2">
               {bill.attachments.map((a, i) => (
-                <div key={i} className="rounded-sm border border-line px-3 py-2 text-sm text-ink-700">
-                  {a.originalName}
+                <div key={i} className="flex min-w-0 items-center gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-700">
+                  <FileText className="h-4 w-4 shrink-0 text-ink-300" strokeWidth={2} />
+                  <span className="min-w-0 flex-1 truncate">{a.originalName}</span>
                 </div>
               ))}
             </div>
@@ -238,25 +249,30 @@ export function AddBill() {
 
         <div className="card flex flex-col gap-4 p-4">
           {aiFailed && (
-            <div className="rounded-sm border border-status-pending/30 bg-status-pendingSoft px-3 py-2 text-sm text-status-pending">
-              We couldn't process this bill automatically. You can still enter the details manually.
+            <div className="flex items-start gap-2.5 rounded-sm border border-status-pending/30 bg-status-pendingSoft px-3 py-2.5 text-sm text-status-pending">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+              <span>We couldn't process this bill automatically. You can still enter the details manually.</span>
             </div>
           )}
 
           {bill.duplicateCheck?.possibleDuplicate && (
-            <div className="rounded-sm border border-status-pending/30 bg-status-pendingSoft px-3 py-2 text-sm text-status-pending">
-              Possible duplicate detected. This bill will still be submitted — the treasurer makes the final call.
+            <div className="flex items-start gap-2.5 rounded-sm border border-status-pending/30 bg-status-pendingSoft px-3 py-2.5 text-sm text-status-pending">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+              <span>Possible duplicate detected. This bill will still be submitted — the treasurer makes the final call.</span>
             </div>
           )}
 
           {warnings.length > 0 && (
-            <div className="rounded-sm border border-status-pending/30 bg-status-pendingSoft px-3 py-2 text-sm text-status-pending">
-              <p className="font-medium">Please double-check:</p>
-              <ul className="ml-4 list-disc">
-                {warnings.map((w, i) => (
-                  <li key={i}>{w}</li>
-                ))}
-              </ul>
+            <div className="flex items-start gap-2.5 rounded-sm border border-status-pending/30 bg-status-pendingSoft px-3 py-2.5 text-sm text-status-pending">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+              <div>
+                <p className="font-medium">Please double-check:</p>
+                <ul className="ml-4 list-disc">
+                  {warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
 
@@ -289,7 +305,7 @@ export function AddBill() {
             <textarea className="field-input" rows={2} value={form.description} onChange={(e) => updateField("description", e.target.value)} />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div>
               <label className="field-label">Subtotal</label>
               <input type="number" className="field-input" value={form.subtotal} onChange={(e) => updateField("subtotal", e.target.value)} />
@@ -305,8 +321,13 @@ export function AddBill() {
           </div>
 
           <div className="border-t border-line pt-4">
-            <label className="field-label">
-              Subsystem {suggested && <span className="ml-1 normal-case text-accent">· AI suggested {suggested}</span>}
+            <label className="field-label flex flex-wrap items-center gap-1">
+              Subsystem
+              {suggested && (
+                <span className="inline-flex items-center gap-1 normal-case text-accent">
+                  <Sparkles className="h-3 w-3" strokeWidth={2} /> AI suggested {suggested}
+                </span>
+              )}
             </label>
             <select
               className="field-input"

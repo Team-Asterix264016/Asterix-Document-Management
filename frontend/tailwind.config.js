@@ -42,6 +42,30 @@ export default {
         DEFAULT: "10px",
         lg: "14px",
       },
+      keyframes: {
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        "slide-up": {
+          "0%": { opacity: "0", transform: "translateY(12px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-400px 0" },
+          "100%": { backgroundPosition: "400px 0" },
+        },
+      },
+      animation: {
+        "fade-up": "fade-up 0.35s ease-out both",
+        "fade-in": "fade-in 0.25s ease-out both",
+        "slide-up": "slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both",
+        shimmer: "shimmer 1.6s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

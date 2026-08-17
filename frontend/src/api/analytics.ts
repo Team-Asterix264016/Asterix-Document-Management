@@ -41,3 +41,21 @@ export async function getApprovals(filters: AnalyticsFilters = {}) {
   );
   return res.data;
 }
+
+export interface AiQueryResult {
+  answer: string;
+  matchingBills: Array<{
+    id: string;
+    billNumber: string;
+    vendorName: string;
+    amount: number;
+    status: string;
+    subsystem?: string;
+    date?: string;
+  }>;
+}
+
+export async function queryBillsAi(query: string): Promise<AiQueryResult> {
+  const res = await api.post<AiQueryResult>("/analytics/ai-query", { query });
+  return res.data;
+}

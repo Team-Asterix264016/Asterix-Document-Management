@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ChevronRight } from "lucide-react";
 import type { Bill } from "../../types";
 import { StatusBadge } from "../ui/StatusBadge";
 import { formatDate, formatINR, nameOf, subsystemName } from "../../utils/format";
@@ -26,14 +27,14 @@ export function BillList({ bills, emptyTitle = "No bills yet", emptySubtitle }: 
           </thead>
           <tbody>
             {bills.map((bill) => (
-              <tr key={bill._id} className="border-b border-line last:border-0 hover:bg-canvas">
+              <tr key={bill._id} className="group border-b border-line transition-colors last:border-0 hover:bg-canvas">
                 <td className="px-4 py-3 text-ink-700">
-                  <Link to={`/bills/${bill._id}`} className="block">
+                  <Link to={`/bills/${bill._id}`} className="block outline-none">
                     {formatDate(bill.billDate)}
                   </Link>
                 </td>
-                <td className="px-4 py-3 font-medium text-ink-900">
-                  <Link to={`/bills/${bill._id}`} className="block">
+                <td className="max-w-[220px] px-4 py-3 font-medium text-ink-900">
+                  <Link to={`/bills/${bill._id}`} className="block truncate outline-none">
                     {bill.vendor ?? "Untitled bill"}
                   </Link>
                 </td>
@@ -41,7 +42,10 @@ export function BillList({ bills, emptyTitle = "No bills yet", emptySubtitle }: 
                 <td className="px-4 py-3 text-ink-700">{nameOf(bill.uploadedBy)}</td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums text-ink-900">{formatINR(bill.totalAmount)}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={bill.status} />
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusBadge status={bill.status} />
+                    <ChevronRight className="h-4 w-4 text-ink-300 opacity-0 transition-opacity group-hover:opacity-100" strokeWidth={2} />
+                  </div>
                 </td>
               </tr>
             ))}
@@ -50,21 +54,27 @@ export function BillList({ bills, emptyTitle = "No bills yet", emptySubtitle }: 
       </div>
 
       {/* Mobile cards */}
-      <div className="flex flex-col gap-2 sm:hidden">
-        {bills.map((bill) => (
-          <Link key={bill._id} to={`/bills/${bill._id}`} className="card block p-3.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
+      <div className="flex flex-col gap-2.5 sm:hidden">
+        {bills.map((bill, i) => (
+          <Link
+            key={bill._id}
+            to={`/bills/${bill._id}`}
+            style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
+            className="card-interactive animate-fade-up flex items-center gap-3 p-3.5"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
                 <p className="truncate font-medium text-ink-900">{bill.vendor ?? "Untitled bill"}</p>
-                <p className="text-xs text-ink-500">
-                  {subsystemName(bill.subsystem)} · {formatDate(bill.billDate)}
-                </p>
+                <p className="shrink-0 font-medium tabular-nums text-ink-900">{formatINR(bill.totalAmount)}</p>
               </div>
-              <p className="shrink-0 font-medium tabular-nums text-ink-900">{formatINR(bill.totalAmount)}</p>
+              <p className="mt-0.5 truncate text-xs text-ink-500">
+                {subsystemName(bill.subsystem)} · {formatDate(bill.billDate)}
+              </p>
+              <div className="mt-2.5">
+                <StatusBadge status={bill.status} />
+              </div>
             </div>
-            <div className="mt-2.5">
-              <StatusBadge status={bill.status} />
-            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-300" strokeWidth={2} />
           </Link>
         ))}
       </div>

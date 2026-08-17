@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import { listBills } from "../api/bills";
 import { listSubsystems } from "../api/subsystems";
 import { BillList } from "../components/bills/BillList";
-import { Spinner } from "../components/ui/Spinner";
+import { SkeletonBillRows } from "../components/ui/Skeleton";
 import type { BillStatus } from "../types";
 
 const STATUS_OPTIONS: Array<{ value: BillStatus | ""; label: string }> = [
@@ -33,15 +34,18 @@ export function Bills() {
       <h1 className="text-xl font-semibold text-ink-900">Bills</h1>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <input
-          className="field-input sm:max-w-xs"
-          placeholder="Search vendor, invoice, description…"
-          value={q}
-          onChange={(e) => {
-            setPage(1);
-            setQ(e.target.value);
-          }}
-        />
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-300" strokeWidth={2} />
+          <input
+            className="field-input pl-9"
+            placeholder="Search vendor, invoice, description…"
+            value={q}
+            onChange={(e) => {
+              setPage(1);
+              setQ(e.target.value);
+            }}
+          />
+        </div>
         <select
           className="field-input sm:max-w-[180px]"
           value={status}
@@ -74,22 +78,20 @@ export function Bills() {
       </div>
 
       {bills.loading ? (
-        <div className="flex justify-center py-10">
-          <Spinner />
-        </div>
+        <SkeletonBillRows count={6} />
       ) : (
         <>
           <BillList bills={bills.data?.items ?? []} emptyTitle="No bills match your filters" />
           {bills.data && bills.data.pages > 1 && (
             <div className="flex items-center justify-center gap-3 pt-2">
-              <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Previous
+              <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">
+                <ChevronLeft className="h-4 w-4" strokeWidth={2} />
               </button>
               <span className="text-sm text-ink-500">
                 Page {bills.data.page} of {bills.data.pages}
               </span>
-              <button className="btn-secondary" disabled={page >= bills.data.pages} onClick={() => setPage((p) => p + 1)}>
-                Next
+              <button className="btn-secondary" disabled={page >= bills.data.pages} onClick={() => setPage((p) => p + 1)} aria-label="Next page">
+                <ChevronRight className="h-4 w-4" strokeWidth={2} />
               </button>
             </div>
           )}

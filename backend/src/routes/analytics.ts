@@ -12,5 +12,6 @@ router.get("/monthly", analyticsController.monthly);
 router.get("/vendors", analyticsController.vendors);
 router.get("/users", analyticsController.users);
 router.get("/approvals", analyticsController.approvals);
+router.post("/ai-query", analyticsController.queryBillsAi);
 
 export default router;

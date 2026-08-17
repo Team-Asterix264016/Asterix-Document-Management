@@ -161,3 +161,90 @@ export async function extractBillData(
     warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
   };
 }
+
+export async function queryBillsWithAi(
+  userQuery: string,
+  billsSummary: Array<{
+    billNumber: string;
+    vendorName: string;
+    subsystem: string;
+    amount: number;
+    date: string;
+    status: string;
+    createdBy?: string;
+    rejectionReason?: string;
+  }>
+): Promise<{ answer: string; matchingBillNumbers: string[] }> {
+  // Simple deterministic fallback matching if Gemini API key is missing
+  if (!env.geminiApiKey) {
+    const q = userQuery.toLowerCase();
+    const matches = billsSummary.filter(
+      (b) =>
+        b.vendorName.toLowerCase().includes(q) ||
+        b.subsystem.toLowerCase().includes(q) ||
+        b.status.toLowerCase().includes(q) ||
+        b.billNumber.toLowerCase().includes(q)
+    );
+    const total = matches.reduce((sum, b) => sum + b.amount, 0);
+    return {
+      answer: `Found ${matches.length} matching bill(s) totaling ₹${total.toLocaleString("en-IN")}. ${
+        matches.length > 0
+          ? `Top matching vendors: ${Array.from(new Set(matches.map((m) => m.vendorName))).join(", ")}.`
+          : ""
+      }`,
+      matchingBillNumbers: matches.map((m) => m.billNumber),
+    };
+  }
+
+  const ai = getClient();
+  const prompt = `You are the AI Financial & Expense Assistant for the Asterix A-BAJA 2027 team.
+You have access to the following current bills dataset (${billsSummary.length} bills):
+
+${JSON.stringify(billsSummary, null, 2)}
+
+User Question: "${userQuery}"
+
+Instructions:
+1. Answer the user's question directly, clearly, and concisely. Use Indian Rupee (₹) formatting for monetary amounts.
+2. If appropriate, summarize key totals, subsystem breakdowns, or status counts.
+3. List the bill numbers of the specific bills that match the query in a JSON property called "matchingBillNumbers".
+
+Return a JSON object with:
+- "answer": Markdown formatted response string answering the query.
+- "matchingBillNumbers": Array of string bill numbers relevant to the answer.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: env.geminiModel,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const text = response.text;
+    if (text) {
+      const parsed = JSON.parse(text);
+      return {
+        answer: parsed.answer ?? "I analyzed your bills query.",
+        matchingBillNumbers: Array.isArray(parsed.matchingBillNumbers) ? parsed.matchingBillNumbers : [],
+      };
+    }
+  } catch (err) {
+    console.error("Gemini AI Query error:", err);
+  }
+
+  // Fallback if AI call fails
+  const q = userQuery.toLowerCase();
+  const matches = billsSummary.filter(
+    (b) =>
+      b.vendorName.toLowerCase().includes(q) ||
+      b.subsystem.toLowerCase().includes(q) ||
+      b.status.toLowerCase().includes(q)
+  );
+  return {
+    answer: `Analyzed ${billsSummary.length} bill records. Found ${matches.length} relevant entries.`,
+    matchingBillNumbers: matches.map((m) => m.billNumber),
+  };
+}
