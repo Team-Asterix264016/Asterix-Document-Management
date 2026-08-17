@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { Bill, type BillStatus } from "../models/Bill.js";
-import { Subsystem } from "../models/Subsystem.js";
+import { Subsystem, SUBSYSTEM_NAME_COLLATION } from "../models/Subsystem.js";
 import { Vendor, normalizeVendorName } from "../models/Vendor.js";
 import { ApiError } from "../utils/ApiError.js";
 import { extractBillData } from "./geminiService.js";
@@ -15,6 +15,35 @@ import { buildBillFilename, extensionFromMime } from "../utils/filename.js";
 import { findPossibleDuplicates } from "./duplicateService.js";
 import { onBillApproved } from "./reportService.js";
 import type { Types } from "mongoose";
+
+/**
+ * Atomic, case-insensitive find-or-create so two members proposing the same new subsystem
+ * name concurrently (e.g. "mechanical" vs "Mechanical") never race into a duplicate-key error
+ * or a near-duplicate subsystem — see spec §15 on preventing category explosion.
+ *
+ * The collation on both the query and the backing unique index (see Subsystem.ts) is what
+ * makes this atomic: MongoDB only guarantees upsert-race-safety when the filter is backed by
+ * a unique index using the same comparison rules, not for an app-level regex "does this already
+ * exist" check. A duplicate-key retry is kept as a defensive fallback regardless.
+ */
+async function findOrCreateSubsystem(rawName: string) {
+  const trimmed = rawName.trim();
+  if (!trimmed) throw ApiError.badRequest("Subsystem name cannot be empty");
+
+  try {
+    return await Subsystem.findOneAndUpdate(
+      { name: trimmed },
+      { $setOnInsert: { name: trimmed, active: true } },
+      { upsert: true, new: true, collation: SUBSYSTEM_NAME_COLLATION }
+    );
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
+      const existing = await Subsystem.findOne({ name: trimmed }).collation(SUBSYSTEM_NAME_COLLATION);
+      if (existing) return existing;
+    }
+    throw err;
+  }
+}
 
 export async function createDraftBill(userId: string, data: { vendor?: string | null; invoiceNumber?: string | null; billDate?: string | null; description?: string | null }) {
   const bill = await Bill.create({
@@ -177,10 +206,12 @@ async function runAiExtraction(billId: string, files: Array<{ buffer: Buffer; mi
   await bill.save();
 }
 
+const EDITABLE_STATUSES = ["DRAFT", "PROCESSING", "REJECTED"];
+
 export async function updateBill(billId: string, data: Record<string, unknown>) {
   const bill = await getBillOrThrow(billId);
-  if (!["DRAFT", "PROCESSING"].includes(bill.status)) {
-    throw ApiError.badRequest("Only draft bills can be edited. Rejected bills must be resubmitted as new drafts.");
+  if (!EDITABLE_STATUSES.includes(bill.status)) {
+    throw ApiError.badRequest("Only draft or rejected bills can be edited");
   }
   bill.userEdited = true;
 
@@ -216,8 +247,7 @@ export async function updateBill(billId: string, data: Record<string, unknown>) 
   if (patch.items !== undefined) bill.items = patch.items as never;
 
   if (patch.newSubsystemName) {
-    const existing = await Subsystem.findOne({ name: patch.newSubsystemName.trim() });
-    const subsystem = existing ?? (await Subsystem.create({ name: patch.newSubsystemName.trim() }));
+    const subsystem = await findOrCreateSubsystem(patch.newSubsystemName);
     bill.subsystem = subsystem._id as never;
     bill.subsystemNameAtSubmission = subsystem.name;
   } else if (patch.subsystemId) {
@@ -233,8 +263,8 @@ export async function updateBill(billId: string, data: Record<string, unknown>) 
 
 export async function submitBill(billId: string, subsystemId: string) {
   const bill = await getBillOrThrow(billId);
-  if (!["DRAFT", "PROCESSING"].includes(bill.status)) {
-    throw ApiError.badRequest("Only draft bills can be submitted");
+  if (!EDITABLE_STATUSES.includes(bill.status)) {
+    throw ApiError.badRequest("Only draft or rejected bills can be submitted");
   }
   if (bill.attachments.length === 0) {
     throw ApiError.badRequest("A bill must have at least one piece of evidence, or use manual entry with all fields filled");
@@ -246,18 +276,26 @@ export async function submitBill(billId: string, subsystemId: string) {
   const subsystem = await Subsystem.findById(subsystemId);
   if (!subsystem) throw ApiError.badRequest("Selected subsystem does not exist");
 
+  const wasRejected = bill.status === "REJECTED";
   bill.subsystem = subsystem._id as never;
   bill.subsystemNameAtSubmission = subsystem.name;
   bill.status = "PENDING_APPROVAL";
   bill.submittedAt = new Date();
+  if (wasRejected) {
+    bill.rejectedAt = null;
+    bill.rejectionReason = null;
+    bill.decidedBy = null;
+  }
 
   if (bill.vendor) {
     const normalized = normalizeVendorName(bill.vendor);
-    await Vendor.findOneAndUpdate(
-      { normalizedName: normalized },
-      { $setOnInsert: { displayName: bill.vendor, normalizedName: normalized } },
-      { upsert: true }
-    );
+    if (normalized) {
+      await Vendor.findOneAndUpdate(
+        { normalizedName: normalized },
+        { $setOnInsert: { displayName: bill.vendor, normalizedName: normalized } },
+        { upsert: true }
+      );
+    }
   }
 
   await bill.save();
@@ -265,15 +303,19 @@ export async function submitBill(billId: string, subsystemId: string) {
 }
 
 export async function approveBill(billId: string, treasurerId: string) {
-  const bill = await getBillOrThrow(billId);
-  if (bill.status !== "PENDING_APPROVAL") {
+  // Atomic conditional update: if two approve/reject requests race for the same bill, only the
+  // first one to match status:"PENDING_APPROVAL" flips it — the second gets null back instead
+  // of silently double-processing (double Drive relocation, double report regen).
+  const bill = await Bill.findOneAndUpdate(
+    { _id: billId, status: "PENDING_APPROVAL" },
+    { $set: { status: "APPROVED", approvedAt: new Date(), decidedBy: treasurerId } },
+    { new: true }
+  );
+  if (!bill) {
+    const existing = await Bill.findById(billId);
+    if (!existing) throw ApiError.notFound("Bill not found");
     throw ApiError.badRequest("Only bills pending approval can be accepted");
   }
-
-  bill.status = "APPROVED";
-  bill.approvedAt = new Date();
-  bill.decidedBy = treasurerId as never;
-  await bill.save();
 
   // Evidence relocation and report updates must never undo the approval decision.
   try {
@@ -294,16 +336,16 @@ export async function approveBill(billId: string, treasurerId: string) {
 }
 
 export async function rejectBill(billId: string, treasurerId: string, reason?: string) {
-  const bill = await getBillOrThrow(billId);
-  if (bill.status !== "PENDING_APPROVAL") {
+  const bill = await Bill.findOneAndUpdate(
+    { _id: billId, status: "PENDING_APPROVAL" },
+    { $set: { status: "REJECTED", rejectedAt: new Date(), rejectionReason: reason ?? null, decidedBy: treasurerId } },
+    { new: true }
+  );
+  if (!bill) {
+    const existing = await Bill.findById(billId);
+    if (!existing) throw ApiError.notFound("Bill not found");
     throw ApiError.badRequest("Only bills pending approval can be rejected");
   }
-
-  bill.status = "REJECTED";
-  bill.rejectedAt = new Date();
-  bill.rejectionReason = reason ?? null;
-  bill.decidedBy = treasurerId as never;
-  await bill.save();
 
   try {
     await relocateEvidence(bill, "REJECTED");

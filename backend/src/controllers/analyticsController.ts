@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import * as analyticsService from "../services/analyticsService.js";
+import { Bill } from "../models/Bill.js";
+import { queryBillsWithAi } from "../services/geminiService.js";
 
 export const summary = asyncHandler(async (req: Request, res: Response) => {
   res.json(await analyticsService.getSummary(req.query as never));
@@ -26,49 +28,49 @@ export const approvals = asyncHandler(async (req: Request, res: Response) => {
   res.json(await analyticsService.getApprovalStats(req.query as never));
 });
 
-export const queryBillsAi = asyncHandler(async (req: Request, res: Response) => {
-  const { query } = req.body;
-  if (!query || typeof query !== "string") {
-    res.status(400).json({ error: "Query string is required" });
-    return;
-  }
+// Capped so prompt size (and Gemini cost/latency) stays bounded no matter how many bills the
+// project accumulates over its lifetime — see spec §69 on Gemini quota efficiency.
+const AI_QUERY_BILL_LIMIT = 300;
 
-  // Filter by user role if member
+export const queryBillsAi = asyncHandler(async (req: Request, res: Response) => {
+  const { query } = req.body as { query: string };
+
   const filter: Record<string, unknown> = {};
   if (req.user?.role === "MEMBER") {
     filter.uploadedBy = req.user.sub;
   }
 
-  const { Bill } = await import("../models/Bill.js");
-  const { queryBillsWithAi } = await import("../services/geminiService.js");
+  const totalCount = await Bill.countDocuments(filter);
+  const bills = await Bill.find(filter)
+    .sort({ billDate: -1, createdAt: -1 })
+    .limit(AI_QUERY_BILL_LIMIT)
+    .populate<{ subsystem: { name: string } | null }>("subsystem", "name")
+    .lean();
 
-  const bills = await Bill.find(filter).populate("subsystem", "name code").lean();
-
-  const billsSummary = bills.map((b: any) => ({
+  const billsSummary = bills.map((b) => ({
     billNumber: b.invoiceNumber || String(b._id),
     vendorName: b.vendor || "Unknown Vendor",
-    subsystem: (b.subsystem as any)?.name ?? "Unassigned",
+    subsystem: b.subsystem?.name ?? b.subsystemNameAtSubmission ?? "Unassigned",
     amount: b.totalAmount ?? 0,
     date: b.billDate ? new Date(b.billDate).toISOString().split("T")[0] : "N/A",
     status: b.status,
-    rejectionReason: b.rejectionReason,
+    rejectionReason: b.rejectionReason ?? undefined,
   }));
 
-  const result = await queryBillsWithAi(query, billsSummary);
+  const result = await queryBillsWithAi(query, billsSummary, totalCount);
 
-  const matchingBills = bills.filter((b: any) =>
-    result.matchingBillNumbers.includes(b.invoiceNumber || String(b._id))
-  );
+  const matchingBillNumbers = new Set(result.matchingBillNumbers);
+  const matchingBills = bills.filter((b) => matchingBillNumbers.has(b.invoiceNumber || String(b._id)));
 
   res.json({
     answer: result.answer,
-    matchingBills: matchingBills.map((b: any) => ({
-      id: b._id,
+    matchingBills: matchingBills.map((b) => ({
+      id: String(b._id),
       billNumber: b.invoiceNumber || String(b._id),
       vendorName: b.vendor || "Unknown Vendor",
       amount: b.totalAmount ?? 0,
       status: b.status,
-      subsystem: (b.subsystem as any)?.name,
+      subsystem: b.subsystem?.name ?? b.subsystemNameAtSubmission ?? undefined,
       date: b.billDate,
     })),
   });

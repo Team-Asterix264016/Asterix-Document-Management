@@ -1,4 +1,5 @@
 import { Bill } from "../models/Bill.js";
+import { Types } from "mongoose";
 
 export interface AnalyticsFilters {
   dateFrom?: string;
@@ -9,13 +10,21 @@ export interface AnalyticsFilters {
   status?: string;
 }
 
+// Raw aggregation $match stages bypass Mongoose's automatic query casting (unlike Model.find()),
+// so an ObjectId-typed field compared against a plain query-string ID would silently match
+// nothing. An invalid ID string is coerced to a value that matches nothing rather than being
+// dropped, so a malformed filter never accidentally widens the result set back to "everyone's".
+function toObjectIdOrNoMatch(id: string): Types.ObjectId {
+  return Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : new Types.ObjectId();
+}
+
 function buildMatch(filters: AnalyticsFilters, statusOverride?: string | string[]) {
   const match: Record<string, unknown> = {};
   if (statusOverride) match.status = Array.isArray(statusOverride) ? { $in: statusOverride } : statusOverride;
   else if (filters.status) match.status = filters.status;
 
-  if (filters.subsystem) match.subsystem = filters.subsystem;
-  if (filters.user) match.uploadedBy = filters.user;
+  if (filters.subsystem) match.subsystem = toObjectIdOrNoMatch(filters.subsystem);
+  if (filters.user) match.uploadedBy = toObjectIdOrNoMatch(filters.user);
   if (filters.vendor) match.vendorNormalized = filters.vendor;
   if (filters.dateFrom || filters.dateTo) {
     match.billDate = {};

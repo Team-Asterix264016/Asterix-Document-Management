@@ -86,4 +86,31 @@ describe("Report generation", () => {
     const sheet = await totalsFromWorkbook(buffer);
     expect(sheet.rowCount).toBeGreaterThan(3);
   });
+
+  it("handles a large volume of bills without errors or dropped rows", async () => {
+    const user = await User.create({ username: "bulk-user", passwordHash: "x", displayName: "Bulk", role: "MEMBER" });
+    const subsystem = await Subsystem.create({ name: "Bulk Subsystem" });
+
+    const bills = Array.from({ length: 250 }, (_, i) => ({
+      uploadedBy: user.id,
+      status: "APPROVED" as const,
+      subsystem: subsystem.id,
+      subsystemNameAtSubmission: "Bulk Subsystem",
+      vendor: `Vendor ${i % 30}`,
+      totalAmount: (i + 1) * 10,
+      billDate: new Date(2027, i % 12, 1 + (i % 27)),
+    }));
+    await Bill.insertMany(bills);
+
+    const { total, bills: reportBills, buffer } = await generateSubsystemReportBuffer(String(subsystem.id));
+    const expectedTotal = bills.reduce((sum, b) => sum + b.totalAmount, 0);
+
+    expect(reportBills).toHaveLength(250);
+    expect(total).toBe(expectedTotal);
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as never);
+    // header/title block rows + 250 data rows
+    expect(workbook.worksheets[0].rowCount).toBeGreaterThanOrEqual(250);
+  });
 });

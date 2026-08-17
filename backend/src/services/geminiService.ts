@@ -162,29 +162,40 @@ export async function extractBillData(
   };
 }
 
+export interface AiQueryBillSummary {
+  billNumber: string;
+  vendorName: string;
+  subsystem: string;
+  amount: number;
+  date: string;
+  status: string;
+  rejectionReason?: string;
+}
+
+const AI_QUERY_MAX_BILLS = 300;
+
+function deterministicMatch(userQuery: string, billsSummary: AiQueryBillSummary[]) {
+  const q = userQuery.toLowerCase();
+  return billsSummary.filter(
+    (b) =>
+      b.vendorName.toLowerCase().includes(q) ||
+      b.subsystem.toLowerCase().includes(q) ||
+      b.status.toLowerCase().includes(q) ||
+      b.billNumber.toLowerCase().includes(q)
+  );
+}
+
 export async function queryBillsWithAi(
   userQuery: string,
-  billsSummary: Array<{
-    billNumber: string;
-    vendorName: string;
-    subsystem: string;
-    amount: number;
-    date: string;
-    status: string;
-    createdBy?: string;
-    rejectionReason?: string;
-  }>
+  billsSummary: AiQueryBillSummary[],
+  totalCount = billsSummary.length
 ): Promise<{ answer: string; matchingBillNumbers: string[] }> {
-  // Simple deterministic fallback matching if Gemini API key is missing
+  // Defensive cap even if the caller passes a larger set — keeps prompt size (and Gemini
+  // cost/latency) bounded regardless of how many bills the project accumulates over time.
+  const bounded = billsSummary.slice(0, AI_QUERY_MAX_BILLS);
+
   if (!env.geminiApiKey) {
-    const q = userQuery.toLowerCase();
-    const matches = billsSummary.filter(
-      (b) =>
-        b.vendorName.toLowerCase().includes(q) ||
-        b.subsystem.toLowerCase().includes(q) ||
-        b.status.toLowerCase().includes(q) ||
-        b.billNumber.toLowerCase().includes(q)
-    );
+    const matches = deterministicMatch(userQuery, bounded);
     const total = matches.reduce((sum, b) => sum + b.amount, 0);
     return {
       answer: `Found ${matches.length} matching bill(s) totaling ₹${total.toLocaleString("en-IN")}. ${
@@ -197,17 +208,22 @@ export async function queryBillsWithAi(
   }
 
   const ai = getClient();
+  const scopeNote =
+    totalCount > bounded.length
+      ? `Note: this dataset shows only the ${bounded.length} most recent bills out of ${totalCount} total — mention this if the question needs the full history.`
+      : "";
   const prompt = `You are the AI Financial & Expense Assistant for the Asterix A-BAJA 2027 team.
-You have access to the following current bills dataset (${billsSummary.length} bills):
+You have access to the following bills dataset (${bounded.length} bills). ${scopeNote}
 
-${JSON.stringify(billsSummary, null, 2)}
+${JSON.stringify(bounded, null, 2)}
 
 User Question: "${userQuery}"
 
 Instructions:
 1. Answer the user's question directly, clearly, and concisely. Use Indian Rupee (₹) formatting for monetary amounts.
 2. If appropriate, summarize key totals, subsystem breakdowns, or status counts.
-3. List the bill numbers of the specific bills that match the query in a JSON property called "matchingBillNumbers".
+3. Never invent bills, amounts, or vendors that are not in the dataset above.
+4. List the bill numbers of the specific bills that match the query in a JSON property called "matchingBillNumbers".
 
 Return a JSON object with:
 - "answer": Markdown formatted response string answering the query.
@@ -227,24 +243,17 @@ Return a JSON object with:
     if (text) {
       const parsed = JSON.parse(text);
       return {
-        answer: parsed.answer ?? "I analyzed your bills query.",
-        matchingBillNumbers: Array.isArray(parsed.matchingBillNumbers) ? parsed.matchingBillNumbers : [],
+        answer: typeof parsed.answer === "string" ? parsed.answer : "I analyzed your bills query.",
+        matchingBillNumbers: Array.isArray(parsed.matchingBillNumbers) ? parsed.matchingBillNumbers.filter((v: unknown) => typeof v === "string") : [],
       };
     }
   } catch (err) {
     console.error("Gemini AI Query error:", err);
   }
 
-  // Fallback if AI call fails
-  const q = userQuery.toLowerCase();
-  const matches = billsSummary.filter(
-    (b) =>
-      b.vendorName.toLowerCase().includes(q) ||
-      b.subsystem.toLowerCase().includes(q) ||
-      b.status.toLowerCase().includes(q)
-  );
+  const matches = deterministicMatch(userQuery, bounded);
   return {
-    answer: `Analyzed ${billsSummary.length} bill records. Found ${matches.length} relevant entries.`,
+    answer: `Analyzed ${bounded.length} bill records. Found ${matches.length} relevant entries.`,
     matchingBillNumbers: matches.map((m) => m.billNumber),
   };
 }

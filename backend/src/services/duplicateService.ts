@@ -35,8 +35,8 @@ export async function findPossibleDuplicates(bill: {
     }
   }
 
-  if (bill.vendor && bill.totalAmount != null && bill.billDate) {
-    const normalized = normalizeVendorName(bill.vendor);
+  const normalized = bill.vendor ? normalizeVendorName(bill.vendor) : "";
+  if (normalized && bill.totalAmount != null && bill.billDate) {
     const windowStart = new Date(bill.billDate);
     windowStart.setDate(windowStart.getDate() - 3);
     const windowEnd = new Date(bill.billDate);

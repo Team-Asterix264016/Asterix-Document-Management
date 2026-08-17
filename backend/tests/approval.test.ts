@@ -92,4 +92,41 @@ describe("Treasurer approval workflow", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("lets a member edit and resubmit a rejected bill, and the treasurer can then approve it", async () => {
+    const billId = await createPendingBill(memberToken);
+    await request(app)
+      .post(`/api/bills/${billId}/reject`)
+      .set("Authorization", `Bearer ${treasurerToken}`)
+      .send({ reason: "Wrong amount" });
+
+    // Rejected bills are not editable-forever black holes — spec §21 explicitly allows resubmission.
+    const edit = await request(app).put(`/api/bills/${billId}`).set("Authorization", `Bearer ${memberToken}`).send({ totalAmount: 1200 });
+    expect(edit.status).toBe(200);
+    expect(edit.body.bill.status).toBe("REJECTED"); // editing alone doesn't resurrect it yet
+
+    const subsystem = await createSubsystem("Resubmit Subsystem");
+    const resubmit = await request(app)
+      .post(`/api/bills/${billId}/submit`)
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ subsystemId: subsystem.id });
+
+    expect(resubmit.status).toBe(200);
+    expect(resubmit.body.bill.status).toBe("PENDING_APPROVAL");
+    expect(resubmit.body.bill.rejectionReason).toBeNull();
+    expect(resubmit.body.bill.rejectedAt).toBeNull();
+
+    const approve = await request(app).post(`/api/bills/${billId}/approve`).set("Authorization", `Bearer ${treasurerToken}`);
+    expect(approve.status).toBe(200);
+    expect(approve.body.bill.totalAmount).toBe(1200);
+  });
+
+  it("refuses to reject a bill that is not pending", async () => {
+    const billId = await createPendingBill(memberToken);
+    await request(app).post(`/api/bills/${billId}/reject`).set("Authorization", `Bearer ${treasurerToken}`);
+
+    const res = await request(app).post(`/api/bills/${billId}/reject`).set("Authorization", `Bearer ${treasurerToken}`);
+
+    expect(res.status).toBe(400);
+  });
 });

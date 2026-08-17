@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Sparkles, X } from "lucide-react";
 import { queryBillsAi, type AiQueryResult } from "../../api/analytics";
+import { apiErrorMessage } from "../../api/client";
 import { StatusBadge } from "./StatusBadge";
 import { formatINR, formatDate } from "../../utils/format";
+import type { BillStatus } from "../../types";
 
 interface AiAssistantModalProps {
   isOpen: boolean;
@@ -22,6 +25,19 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
   const [result, setResult] = useState<AiQueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = "hidden";
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   async function handleSearch(searchQuery: string) {
@@ -31,42 +47,43 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
     try {
       const res = await queryBillsAi(searchQuery);
       setResult(res);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Failed to query AI Assistant");
+    } catch (err) {
+      setError(apiErrorMessage(err, "AI Assistant is unavailable right now. Please try again."));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-xs">
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-line bg-surface shadow-2xl animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-line px-6 py-4 bg-canvas/50">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4 backdrop-blur-sm"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Bill Assistant"
+        className="animate-fade-up w-full max-w-2xl overflow-hidden rounded-lg border border-line bg-surface shadow-card"
+      >
+        <div className="flex items-center justify-between border-b border-line bg-canvas/60 px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent">
+              <Sparkles className="h-4.5 w-4.5" strokeWidth={1.75} />
             </div>
             <div>
               <h3 className="text-base font-semibold text-ink-900">AI Bill Assistant</h3>
-              <p className="text-xs text-ink-500">Ask natural language questions about bills, spend & vendors</p>
+              <p className="text-xs text-ink-500">Ask about bills, spend, or vendors in plain language</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-ink-400 hover:bg-canvas hover:text-ink-700 transition-colors"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button onClick={onClose} aria-label="Close" className="rounded-sm p-1.5 text-ink-500 transition-colors hover:bg-canvas hover:text-ink-900">
+            <X className="h-5 w-5" strokeWidth={2} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 max-h-[75vh] overflow-y-auto space-y-6">
-          {/* Query Input */}
+        <div className="max-h-[75vh] space-y-6 overflow-y-auto p-6">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -78,19 +95,15 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g. Total spent on Powertrain this month..."
-              className="w-full rounded-lg border border-line bg-canvas px-4 py-3 pr-24 text-sm font-medium text-ink-900 placeholder:text-ink-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              placeholder="e.g. Total spent on Powertrain this month…"
+              className="field-input pr-24"
+              autoFocus
             />
-            <button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="absolute right-2 top-2 rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-white hover:bg-accent/90 disabled:opacity-50 transition-colors"
-            >
-              {loading ? "Analyzing..." : "Ask AI"}
+            <button type="submit" disabled={loading || !query.trim()} className="btn-primary absolute right-1.5 top-1.5 !px-3 !py-1.5 text-xs">
+              {loading ? "Asking…" : "Ask AI"}
             </button>
           </form>
 
-          {/* Quick Prompts */}
           {!result && !loading && (
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-ink-500">Suggested Queries</p>
@@ -102,69 +115,59 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
                       setQuery(prompt);
                       handleSearch(prompt);
                     }}
-                    className="rounded-lg border border-line bg-canvas px-3 py-1.5 text-xs font-medium text-ink-700 hover:border-accent/50 hover:bg-accent/5 hover:text-accent transition-colors"
+                    className="rounded-full border border-line bg-canvas px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
                   >
-                    ✨ {prompt}
+                    {prompt}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Loading Indicator */}
           {loading && (
-            <div className="flex items-center justify-center py-8 text-center">
-              <div className="space-y-3">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                <p className="text-sm font-medium text-ink-600">Querying Gemini AI across team bill records...</p>
-              </div>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+              <p className="text-sm text-ink-500">Reading through your bill records…</p>
             </div>
           )}
 
-          {/* Error Message */}
           {error && (
-            <div className="rounded-lg bg-red-50 p-4 border border-red-200 text-xs font-medium text-red-700">
-              {error}
-            </div>
+            <div className="rounded-sm border border-status-rejected/30 bg-status-rejectedSoft p-3 text-sm text-status-rejected">{error}</div>
           )}
 
-          {/* AI Response Output */}
           {result && !loading && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-line bg-canvas p-4 text-sm text-ink-800 leading-relaxed whitespace-pre-line">
-                <div className="flex items-center gap-2 mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
-                  <span>AI Summary</span>
-                </div>
+              <div className="whitespace-pre-line rounded-sm border border-line bg-canvas p-4 text-sm leading-relaxed text-ink-800">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">Answer</p>
                 {result.answer}
               </div>
 
-              {/* Matching Bills List */}
               {result.matchingBills.length > 0 && (
                 <div>
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-500">
                     Matching Bills ({result.matchingBills.length})
                   </h4>
-                  <div className="divide-y divide-line rounded-lg border border-line bg-surface overflow-hidden">
+                  <div className="divide-y divide-line overflow-hidden rounded border border-line">
                     {result.matchingBills.map((bill) => (
                       <Link
                         key={bill.id}
                         to={`/bills/${bill.id}`}
                         onClick={onClose}
-                        className="flex items-center justify-between p-3 text-xs hover:bg-canvas transition-colors"
+                        className="flex items-center justify-between gap-3 p-3 text-xs transition-colors hover:bg-canvas"
                       >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-ink-900">{bill.billNumber}</span>
-                            <span className="text-ink-500">•</span>
-                            <span className="font-medium text-ink-700">{bill.vendorName}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate font-semibold text-ink-900">{bill.billNumber}</span>
+                            <span className="text-ink-300">·</span>
+                            <span className="truncate font-medium text-ink-700">{bill.vendorName}</span>
                           </div>
-                          <div className="mt-0.5 text-ink-400">
-                            {bill.subsystem || "Unassigned"} {bill.date ? `• ${formatDate(bill.date)}` : ""}
+                          <div className="mt-0.5 text-ink-500">
+                            {bill.subsystem || "Unassigned"} {bill.date ? `· ${formatDate(bill.date)}` : ""}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-3">
                           <span className="font-semibold text-ink-900">{formatINR(bill.amount)}</span>
-                          <StatusBadge status={bill.status as any} />
+                          <StatusBadge status={bill.status as BillStatus} />
                         </div>
                       </Link>
                     ))}
