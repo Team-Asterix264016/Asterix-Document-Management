@@ -24,11 +24,11 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
-      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+      - key: GOOGLE_CLIENT_ID
         sync: false
-      - key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+      - key: GOOGLE_CLIENT_SECRET
         sync: false
-      - key: GOOGLE_DRIVE_SHARED_DRIVE_ID
+      - key: GOOGLE_REFRESH_TOKEN
         sync: false
       - key: GOOGLE_DRIVE_ROOT_FOLDER_ID
         sync: false

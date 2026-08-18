@@ -36,24 +36,24 @@ Indexes are created automatically by Mongoose on boot — no manual index setup 
 
 ---
 
-## 2. Google Cloud project + Drive API + Service Account (evidence storage)
+## 2. Google Cloud project + Drive API + OAuth2 (evidence storage)
 
-The backend authenticates to Drive with a **service account** (no interactive OAuth, no refresh-token expiry — ideal for a server).
+The backend authenticates to Drive using an **OAuth2 Refresh Token** which bypasses personal account storage limits and uploads directly using your personal quota.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) → create a new project, e.g. `asterix-baja-2027`.
 2. **APIs & Services → Library** → search **Google Drive API** → **Enable**.
-3. **APIs & Services → Credentials → Create Credentials → Service account**:
-   - Name it e.g. `asterix-drive-bot`, click **Done**.
-   - Open the created service account → **Keys → Add key → Create new key → JSON**. A `.json` file downloads.
-4. From that JSON file you need two values:
-   - `client_email` → **`GOOGLE_SERVICE_ACCOUNT_EMAIL`**
-   - `private_key` → **`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`** (keep the `\n` escape sequences intact; the backend un-escapes them automatically).
-5. **Create the root folder and grant access:**
-   - In Google Drive, create (or choose) a folder named **`Asterix A-BAJA 2027`**. Using a **Shared Drive** is strongly recommended so files aren't owned by a personal account and service-account storage quotas don't apply.
-   - **Share** that folder (or the whole Shared Drive) with the service account's `client_email`, giving it **Content manager / Editor** access.
+3. **APIs & Services → OAuth consent screen**: Choose **External**, fill the required fields, and add your email (`asterix.psgitech@gmail.com`) under **Test users**.
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID**:
+   - Application type: **Desktop app**.
+   - Note down the generated **Client ID** (`GOOGLE_CLIENT_ID`) and **Client Secret** (`GOOGLE_CLIENT_SECRET`).
+5. **Generate the Refresh Token**:
+   - Locally, ensure your `.env` file contains your Client ID and Secret.
+   - Run `npx tsx src/scripts/getGoogleToken.ts` in your backend directory.
+   - Follow the instructions to get your **`GOOGLE_REFRESH_TOKEN`**.
+6. **Create the root folder**:
+   - In Google Drive, create a folder named **`Asterix A-BAJA 2027`**.
    - Open the folder in the browser and copy its ID from the URL
      (`https://drive.google.com/drive/folders/<THIS_IS_THE_ID>`) → **`GOOGLE_DRIVE_ROOT_FOLDER_ID`**.
-   - If using a Shared Drive, also copy the Shared Drive ID → **`GOOGLE_DRIVE_SHARED_DRIVE_ID`** (leave blank for a normal folder).
 
 The app auto-creates its child hierarchy (`Bill Evidence/Pending`, `.../Approved/<Subsystem>`, `.../Rejected Bills`, `Subsystem Reports`, `Monthly Reports`) on first use.
 
@@ -73,15 +73,15 @@ The app auto-creates its child hierarchy (`Bill Evidence/Pending`, `.../Approved
 2. In the service's **Environment** tab, fill the secrets marked `sync: false`:
 
    | Variable | Value |
-   |---|---|
-   | `MONGODB_URI` | from step 1 |
-   | `JWT_SECRET` | a long random string (e.g. `openssl rand -hex 32`) |
-   | `FRONTEND_URL` | your Vercel URL, e.g. `https://asterix-baja.vercel.app` (needed for CORS) |
-   | `GEMINI_API_KEY` | from step 3 |
-   | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | from step 2 |
-   | `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | from step 2 (paste the full `-----BEGIN...` block) |
-   | `GOOGLE_DRIVE_ROOT_FOLDER_ID` | from step 2 |
-   | `GOOGLE_DRIVE_SHARED_DRIVE_ID` | from step 2 (or leave empty) |
+   | --- | --- |
+   | `MONGODB_URI` | `mongodb+srv://...` |
+   | `JWT_SECRET` | Generate a random 64-char string |
+   | `FRONTEND_URL` | Temporarily `https://*` (restrict to Vercel domain later) |
+   | `GEMINI_API_KEY` | `AIzaSy...` |
+   | `GOOGLE_CLIENT_ID` | From step 2 |
+   | `GOOGLE_CLIENT_SECRET` | From step 2 |
+   | `GOOGLE_REFRESH_TOKEN` | Generated from your local script |
+   | `GOOGLE_DRIVE_ROOT_FOLDER_ID` | `1yiR...` |
 
    `NODE_ENV`, `PORT`, `GEMINI_MODEL`, `JWT_EXPIRES_IN`, `MAX_UPLOAD_MB` already have sensible defaults in `render.yaml`.
 3. Deploy. When the service is live, confirm `https://<your-api>.onrender.com/api/health` returns `{"status":"ok"}`.
