@@ -41,9 +41,14 @@ export function AppShell() {
     <div className="min-h-screen bg-canvas">
       <div className="mx-auto flex min-h-screen max-w-7xl">
         <aside className="hidden w-60 shrink-0 flex-col border-r border-line px-5 py-6 md:flex">
-          <div className="mb-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-ink-500">Asterix A-BAJA 2027</p>
-            <p className="mt-0.5 text-sm font-semibold text-ink-900">Bill Management</p>
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-canvas">
+              <img src="/logo.png" alt="Asterix Logo" className="h-full w-full object-cover" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-500">Asterix A-BAJA '27</p>
+              <p className="text-sm font-bold text-ink-900">Bill Manager</p>
+            </div>
           </div>
 
           {/* AI Assistant Button */}
@@ -102,7 +107,12 @@ export function AppShell() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-line px-4 py-3 md:hidden">
-            <p className="text-sm font-semibold text-ink-900">Asterix A-BAJA 2027</p>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded border border-line bg-canvas">
+                <img src="/logo.png" alt="Asterix Logo" className="h-full w-full object-cover" />
+              </div>
+              <p className="text-sm font-semibold text-ink-900">Asterix A-BAJA '27</p>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsAiModalOpen(true)}

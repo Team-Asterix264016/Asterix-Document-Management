@@ -26,8 +26,8 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
-            <ReceiptText className="h-5 w-5" strokeWidth={1.75} />
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-line bg-canvas shadow-sm">
+            <img src="/logo.png" alt="Asterix Team Logo" className="h-full w-full object-cover" />
           </div>
           <p className="text-xs font-medium uppercase tracking-wider text-ink-500">Asterix A-BAJA 2027</p>
           <h1 className="mt-1 text-xl font-semibold text-ink-900">Bill Management</h1>
