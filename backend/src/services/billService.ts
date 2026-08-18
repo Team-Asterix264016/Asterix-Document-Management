@@ -391,7 +391,7 @@ export interface BillListFilters {
   sort?: string;
 }
 
-export async function listBills(filters: BillListFilters, scope: { userId: string; role: "MEMBER" | "TREASURER" }) {
+export async function listBills(filters: BillListFilters, scope: { userId: string; role: "MEMBER" | "TREASURER" | "ADMIN" }) {
   const query: Record<string, unknown> = {};
 
   if (scope.role === "MEMBER") {
@@ -421,8 +421,8 @@ export async function listBills(filters: BillListFilters, scope: { userId: strin
   return { items, total, page: filters.page, limit: filters.limit, pages: Math.ceil(total / filters.limit) };
 }
 
-export function assertCanViewBill(bill: { uploadedBy: unknown }, scope: { userId: string; role: "MEMBER" | "TREASURER" }) {
-  if (scope.role === "TREASURER") return;
+export function assertCanViewBill(bill: { uploadedBy: unknown }, scope: { userId: string; role: "MEMBER" | "TREASURER" | "ADMIN" }) {
+  if (scope.role === "TREASURER" || scope.role === "ADMIN") return;
   if (String(bill.uploadedBy) !== scope.userId) {
     throw ApiError.forbidden("You can only view your own bills");
   }
