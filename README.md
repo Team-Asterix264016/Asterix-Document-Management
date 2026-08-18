@@ -91,13 +91,13 @@ MongoDB Atlas                 Google Drive API            Google Gemini API
 
 ## Documentation Index
 
-Detailed specifications and guides are organized under the [`docs/`](file:///e:/w/Asterix%20Document%20management/docs) folder:
+Detailed specifications and guides are organized under the [`docs/`](docs) folder:
 
-- 🏗️ **[System Architecture](file:///e:/w/Asterix%20Document%20management/docs/ARCHITECTURE.md)**: Deep dive into services, data schemas, Gemini OCR pipeline, and Google Drive evidence vault.
-- 📡 **[API Specification](file:///e:/w/Asterix%20Document%20management/docs/API.md)**: REST API endpoints reference, request payloads, and response structures.
-- 💻 **[Development Guide](file:///e:/w/Asterix%20Document%20management/docs/DEVELOPMENT.md)**: Local setup, database seeding, environment configuration, and Vitest test execution.
-- 🚀 **[Deployment Guide](file:///e:/w/Asterix%20Document%20management/docs/DEPLOYMENT.md)**: Deployment steps for Render (Backend) and Vercel (Frontend).
-- 📄 **[Requirements Specs](file:///e:/w/Asterix%20Document%20management/docs/specs)**: Original requirement documents (`.docx`).
+- 🏗️ **[System Architecture](docs/ARCHITECTURE.md)**: Deep dive into services, data schemas, Gemini OCR pipeline, and Google Drive evidence vault.
+- 📡 **[API Specification](docs/API.md)**: REST API endpoints reference, request payloads, and response structures.
+- 💻 **[Development Guide](docs/DEVELOPMENT.md)**: Local setup, database seeding, environment configuration, and Vitest test execution.
+- 🚀 **[Deployment Guide](docs/DEPLOYMENT.md)**: End-to-end cloud deployment (MongoDB Atlas, Google Cloud/Drive, Gemini, Render, Vercel).
+- 📄 **[Requirements Specs](docs/specs)**: Original requirement documents (`.docx`).
 
 ---
 
