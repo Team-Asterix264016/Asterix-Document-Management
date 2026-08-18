@@ -8,7 +8,7 @@ import { apiErrorMessage } from "../api/client";
 import { Spinner } from "../components/ui/Spinner";
 import { formatINR } from "../utils/format";
 import type { Bill, BillItem } from "../types";
-import { AlertTriangle, FileText, Sparkles, UploadCloud } from "lucide-react";
+import { AlertTriangle, FileText, Sparkles, UploadCloud, Plus, Trash2 } from "lucide-react";
 
 const PROCESSING_MESSAGES = ["Reading bill…", "Extracting information…", "Identifying subsystem…", "Checking for duplicates…"];
 
@@ -107,6 +107,36 @@ export function AddBill() {
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  function updateItem(index: number, key: keyof BillItem, value: any) {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const newItems = [...prev.items];
+      newItems[index] = { ...newItems[index], [key]: value };
+      return { ...prev, items: newItems };
+    });
+  }
+
+  function addItem() {
+    setForm((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: [
+          ...prev.items,
+          { name: "", description: "", quantity: 1, unitPrice: 0, tax: 0, total: 0 },
+        ],
+      };
+    });
+  }
+
+  function removeItem(index: number) {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const newItems = prev.items.filter((_, i) => i !== index);
+      return { ...prev, items: newItems };
+    });
   }
 
   async function handleSubmit() {
@@ -278,6 +308,71 @@ export function AddBill() {
           <div>
             <label className="field-label">Description</label>
             <textarea className="field-input" rows={2} value={form.description} onChange={(e) => updateField("description", e.target.value)} />
+          </div>
+
+          <div className="border-t border-line pt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <label className="field-label mb-0">Items</label>
+              <button onClick={addItem} type="button" className="flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-accent-hover">
+                <Plus className="h-4 w-4" /> Add Item
+              </button>
+            </div>
+            
+            {form.items.length === 0 ? (
+              <p className="text-sm text-ink-500 italic">No items extracted.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {form.items.map((item, idx) => (
+                  <div key={idx} className="flex flex-col gap-2 rounded-sm border border-line bg-ink-50/50 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <input
+                        className="field-input text-sm font-medium"
+                        placeholder="Item name"
+                        value={item.name}
+                        onChange={(e) => updateItem(idx, "name", e.target.value)}
+                      />
+                      <button
+                        onClick={() => removeItem(idx)}
+                        type="button"
+                        className="p-1 text-ink-400 transition-colors hover:text-status-rejected"
+                        title="Remove item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <span className="mb-1 block text-xs text-ink-500">Qty</span>
+                        <input
+                          type="number"
+                          className="field-input px-2 py-1 text-sm"
+                          value={item.quantity ?? ""}
+                          onChange={(e) => updateItem(idx, "quantity", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-xs text-ink-500">Price (₹)</span>
+                        <input
+                          type="number"
+                          className="field-input px-2 py-1 text-sm"
+                          value={item.unitPrice ?? ""}
+                          onChange={(e) => updateItem(idx, "unitPrice", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-xs text-ink-500">Total (₹)</span>
+                        <input
+                          type="number"
+                          className="field-input px-2 py-1 text-sm"
+                          value={item.total ?? ""}
+                          onChange={(e) => updateItem(idx, "total", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
