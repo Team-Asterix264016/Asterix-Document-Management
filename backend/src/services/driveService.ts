@@ -6,14 +6,14 @@ let driveClient: drive_v3.Drive | null = null;
 
 function getDrive(): drive_v3.Drive {
   if (!driveClient) {
-    if (!env.googleServiceAccountEmail || !env.googleServiceAccountPrivateKey) {
-      throw new Error("Google Drive service account credentials are not configured");
+    if (!env.googleClientId || !env.googleClientSecret || !env.googleRefreshToken) {
+      throw new Error("Google Drive OAuth2 credentials are not configured");
     }
-    const auth = new google.auth.JWT({
-      email: env.googleServiceAccountEmail,
-      key: env.googleServiceAccountPrivateKey,
-      scopes: ["https://www.googleapis.com/auth/drive"],
-    });
+    const auth = new google.auth.OAuth2(
+      env.googleClientId,
+      env.googleClientSecret
+    );
+    auth.setCredentials({ refresh_token: env.googleRefreshToken });
     driveClient = google.drive({ version: "v3", auth });
   }
   return driveClient;
@@ -34,8 +34,6 @@ export async function ensureFolder(name: string, parentId: string): Promise<stri
     fields: "files(id, name)",
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
-    corpora: env.googleDriveSharedDriveId ? "drive" : "user",
-    driveId: env.googleDriveSharedDriveId || undefined,
   });
 
   const existing = listRes.data.files?.[0];

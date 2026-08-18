@@ -267,7 +267,7 @@ export async function submitBill(billId: string, subsystemId: string) {
     throw ApiError.badRequest("Only draft or rejected bills can be submitted");
   }
   if (bill.attachments.length === 0) {
-    throw ApiError.badRequest("A bill must have at least one piece of evidence, or use manual entry with all fields filled");
+    throw ApiError.badRequest("A bill must have at least one piece of evidence attached.");
   }
   if (bill.totalAmount == null) {
     throw ApiError.badRequest("Total amount is required before submission");

@@ -1,4 +1,18 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
+
+const cwdEnv = path.resolve(process.cwd(), ".env");
+const parentEnv = path.resolve(process.cwd(), "..", ".env");
+
+if (fs.existsSync(cwdEnv)) {
+  dotenv.config({ path: cwdEnv });
+} else if (fs.existsSync(parentEnv)) {
+  dotenv.config({ path: parentEnv });
+} else {
+  dotenv.config();
+}
+
 
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
@@ -22,9 +36,9 @@ export const env = {
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
 
-  googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "",
-  googleServiceAccountPrivateKey: (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
-  googleDriveSharedDriveId: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID ?? "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  googleRefreshToken: process.env.GOOGLE_REFRESH_TOKEN ?? "",
   googleDriveRootFolderId: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "",
 
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 15),

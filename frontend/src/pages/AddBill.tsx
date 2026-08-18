@@ -8,7 +8,7 @@ import { apiErrorMessage } from "../api/client";
 import { Spinner } from "../components/ui/Spinner";
 import { formatINR } from "../utils/format";
 import type { Bill, BillItem } from "../types";
-import { AlertTriangle, FileText, PenLine, Sparkles, UploadCloud } from "lucide-react";
+import { AlertTriangle, FileText, Sparkles, UploadCloud } from "lucide-react";
 
 const PROCESSING_MESSAGES = ["Reading bill…", "Extracting information…", "Identifying subsystem…", "Checking for duplicates…"];
 
@@ -105,20 +105,6 @@ export function AddBill() {
     }
   }
 
-  async function handleManualEntry() {
-    setBusy(true);
-    try {
-      const draft = await billsApi.createDraftBill();
-      setBill(draft);
-      setForm(billToForm(draft));
-      setStep("review");
-    } catch (err) {
-      toast.push(apiErrorMessage(err), "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
@@ -189,17 +175,6 @@ export function AddBill() {
           />
           <span className="btn-primary mt-2">{busy ? "Uploading…" : "Choose files"}</span>
         </label>
-
-        <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-ink-300">
-          <div className="h-px flex-1 bg-line" />
-          or
-          <div className="h-px flex-1 bg-line" />
-        </div>
-
-        <button className="btn-secondary" onClick={handleManualEntry} disabled={busy}>
-          <PenLine className="h-4 w-4" strokeWidth={2} />
-          Enter bill manually
-        </button>
       </div>
     );
   }

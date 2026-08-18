@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   LogOut,
   Sparkles,
+  Heart,
 } from "lucide-react";
 import { AiAssistantModal } from "../ui/AiAssistantModal";
 
@@ -80,16 +81,22 @@ export function AppShell() {
             ))}
           </nav>
 
-          <div className="border-t border-line pt-4">
-            <p className="text-sm font-medium text-ink-900">{user?.displayName}</p>
-            <p className="text-xs text-ink-500">{user?.role === "TREASURER" ? "Treasurer" : "Member"}</p>
-            <button
-              onClick={logout}
-              className="mt-3 flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900"
-            >
-              <LogOut className="h-3.5 w-3.5" strokeWidth={2} />
-              Sign out
-            </button>
+          <div className="flex flex-col gap-6 border-t border-line pt-4">
+            <div>
+              <p className="text-sm font-medium text-ink-900">{user?.displayName}</p>
+              <p className="text-xs text-ink-500">{user?.role === "TREASURER" ? "Treasurer" : "Member"}</p>
+              <button
+                onClick={logout}
+                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900"
+              >
+                <LogOut className="h-3.5 w-3.5" strokeWidth={2} />
+                Sign out
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-ink-400 opacity-80">
+              Crafted with <Heart className="h-3 w-3 fill-accent text-accent" /> by Arya & Rithvin
+            </div>
           </div>
         </aside>
 

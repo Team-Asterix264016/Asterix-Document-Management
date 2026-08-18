@@ -7,15 +7,16 @@ import { Vendor } from "../models/Vendor.js";
 import { Report } from "../models/Report.js";
 
 export async function connectDB(): Promise<void> {
+  console.log("Connecting to MongoDB Atlas...");
   mongoose.set("strictQuery", true);
   await mongoose.connect(env.mongodbUri, {
     maxPoolSize: 10,
   });
+  console.log("Connected to MongoDB Atlas.");
 
-  // Indexes (including the collated unique index on Subsystem.name) are otherwise built in the
-  // background — waiting here means the uniqueness/race guarantees are live before the server
-  // starts accepting requests, not at some indeterminate point after the first few queries.
+  console.log("Syncing database indexes...");
   await Promise.all([User.init(), Bill.init(), Subsystem.init(), Vendor.init(), Report.init()]);
+  console.log("Database indexes synced.");
 }
 
 export async function disconnectDB(): Promise<void> {

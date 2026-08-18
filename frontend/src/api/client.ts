@@ -43,7 +43,10 @@ export async function downloadFile(path: string, filename: string): Promise<void
 
 export function apiErrorMessage(error: unknown, fallback = "Something went wrong. Please try again."): string {
   if (axios.isAxiosError(error)) {
-    return (error.response?.data as { error?: string } | undefined)?.error ?? fallback;
+    if (!error.response) {
+      return "Could not connect to the server. Is the backend running?";
+    }
+    return (error.response.data as { error?: string } | undefined)?.error ?? fallback;
   }
   return fallback;
 }

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { AlertTriangle, ArrowRight, ReceiptText } from "lucide-react";
+import { AlertTriangle, ArrowRight, ReceiptText, Heart } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../api/client";
 
@@ -76,6 +76,10 @@ export function Login() {
             {!isLoading && <ArrowRight className="h-4 w-4" strokeWidth={2} />}
           </button>
         </form>
+
+        <div className="mt-8 flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-ink-400 opacity-80">
+          Crafted with <Heart className="h-3 w-3 fill-accent text-accent" /> by Arya & Rithvin
+        </div>
       </div>
     </div>
   );
