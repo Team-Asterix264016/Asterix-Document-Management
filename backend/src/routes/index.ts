@@ -5,6 +5,7 @@ import subsystemRoutes from "./subsystems.js";
 import reportRoutes from "./reports.js";
 import analyticsRoutes from "./analytics.js";
 import exportRoutes from "./exports.js";
+import userRoutes from "./users.js";
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use("/subsystems", subsystemRoutes);
 router.use("/reports", reportRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/exports", exportRoutes);
+router.use("/users", userRoutes);
 
 export default router;

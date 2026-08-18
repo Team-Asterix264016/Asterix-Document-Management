@@ -1,4 +1,4 @@
-export type Role = "MEMBER" | "TREASURER";
+export type Role = "MEMBER" | "TREASURER" | "ADMIN";
 
 export type BillStatus = "DRAFT" | "PROCESSING" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 

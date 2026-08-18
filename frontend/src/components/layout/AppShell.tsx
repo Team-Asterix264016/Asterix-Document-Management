@@ -12,6 +12,7 @@ import {
   LogOut,
   Sparkles,
   Heart,
+  Users,
 } from "lucide-react";
 import { AiAssistantModal } from "../ui/AiAssistantModal";
 
@@ -31,11 +32,19 @@ const TREASURER_NAV = [
   { to: "/analytics", label: "Analytics", shortLabel: "Stats", icon: BarChart3 },
 ];
 
+const ADMIN_NAV = [
+  { to: "/", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { to: "/users", label: "Users", shortLabel: "Users", icon: Users },
+  { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
+  { to: "/reports", label: "Reports", shortLabel: "Reports", icon: FileBarChart2 },
+  { to: "/analytics", label: "Analytics", shortLabel: "Stats", icon: BarChart3 },
+];
+
 export function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const navItems = user?.role === "TREASURER" ? TREASURER_NAV : MEMBER_NAV;
+  const navItems = user?.role === "ADMIN" ? ADMIN_NAV : user?.role === "TREASURER" ? TREASURER_NAV : MEMBER_NAV;
 
   return (
     <div className="min-h-screen bg-canvas">

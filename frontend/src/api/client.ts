@@ -50,3 +50,19 @@ export function apiErrorMessage(error: unknown, fallback = "Something went wrong
   }
   return fallback;
 }
+
+export const usersApi = {
+  getAll: async () => {
+    const res = await api.get("/users");
+    return res.data;
+  },
+  create: async (userData: any) => {
+    const res = await api.post("/users", userData);
+    return res.data;
+  },
+  resetPassword: async (id: string, newPassword: string) => {
+    const res = await api.patch(`/users/${id}/password`, { newPassword });
+    return res.data;
+  },
+};
+

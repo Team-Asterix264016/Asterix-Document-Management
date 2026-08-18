@@ -12,6 +12,8 @@ import { Approval } from "./pages/Approval";
 import { Reports } from "./pages/Reports";
 import { Analytics } from "./pages/Analytics";
 
+import { Users } from "./pages/Users";
+
 export default function App() {
   return (
     <AuthProvider>
@@ -31,6 +33,10 @@ export default function App() {
 
                 <Route element={<ProtectedRoute allow={["TREASURER"]} />}>
                   <Route path="/approval" element={<Approval />} />
+                </Route>
+
+                <Route element={<ProtectedRoute allow={["ADMIN"]} />}>
+                  <Route path="/users" element={<Users />} />
                 </Route>
               </Route>
             </Route>
