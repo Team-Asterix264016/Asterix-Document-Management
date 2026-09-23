@@ -1,63 +1,117 @@
-name: CI-CD Pipeline
+name: CI
+
 on:
   push:
-    branches:
-      - main
-      - master
-      - develop
+    branches: [main]
   pull_request:
-    branches:
-      - main
-      - master
-      - develop
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: CI only needs to read the repo.
+permissions:
+  contents: read
+
+# A newer push to the same branch/PR cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in sync with backend/.node-version and render.yaml NODE_VERSION.
+  NODE_VERSION: "22.20.0"
 
 jobs:
-  backend-test:
-    name: Backend Integration Tests
+  backend:
+    name: Backend · typecheck, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
     defaults:
       run:
         working-directory: backend
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install Backend Dependencies
+      - name: Install
         run: npm ci
 
-      - name: Run Backend Vitest Test Suite
+      # mongodb-memory-server downloads a mongod binary on first use; cache it between runs.
+      - name: Cache MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
         run: npm test
         env:
           NODE_ENV: test
-          JWT_SECRET: ci-test-secret-key-12345
+          JWT_SECRET: ci-test-secret-key-that-is-at-least-32-chars
           GEMINI_API_KEY: mock-gemini-key
 
-  frontend-build:
-    name: Frontend Typecheck & Build
+      - name: Build (same command Render runs)
+        run: npm run build
+
+  frontend:
+    name: Frontend · lint, typecheck, build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Frontend Dependencies
+      - name: Install
         run: npm ci
 
-      - name: Typecheck and Build Frontend SPA
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck and build
         run: npm run build
+        env:
+          VITE_API_URL: https://asterix-baja-backend.onrender.com/api
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  audit:
+    name: Dependency audit (production deps)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Fails only on high/critical advisories in shipped dependencies.
+      - name: npm audit
+        run: npm audit --omit=dev --audit-level=high
