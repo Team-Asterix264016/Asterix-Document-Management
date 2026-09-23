@@ -6,6 +6,10 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      # Types must match the Node runtime (22.x on Render and in CI).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       backend-minor-and-patch:
         update-types: [minor, patch]
@@ -16,7 +20,14 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      # Tailwind 4 is a CSS-first rewrite (no @apply of custom classes, new PostCSS plugin);
+      # it needs a dedicated migration, not an automated bump.
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
     groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
       frontend-minor-and-patch:
         update-types: [minor, patch]
 
