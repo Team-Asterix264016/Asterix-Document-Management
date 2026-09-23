@@ -75,8 +75,15 @@ export function assertProductionEnv(): void {
   if (!process.env.JWT_SECRET) problems.push("JWT_SECRET is required");
   else if (env.jwtSecret === DEV_JWT_SECRET) problems.push("JWT_SECRET must not be the development default");
   else if (env.jwtSecret.length < 32) problems.push("JWT_SECRET must be at least 32 characters");
-  if (env.allowedOrigins.length === 0) problems.push("FRONTEND_URL is required");
   if (!Number.isFinite(env.port) || env.port <= 0) problems.push("PORT must be a positive number");
+
+  // Warned about, not fatal: a wrong CORS allowlist is a misconfiguration, but
+  // refusing to boot over it would turn it into a failed deploy.
+  if (env.allowedOrigins.length === 0 || env.allowedOrigins.some((origin) => origin.includes("localhost"))) {
+    console.warn(
+      `WARNING: FRONTEND_URL is "${env.frontendUrl}". Browser requests from the real frontend origin will be blocked by CORS.`
+    );
+  }
 
   if (problems.length > 0) {
     throw new Error(`Invalid production configuration:\n  - ${problems.join("\n  - ")}`);
