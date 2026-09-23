@@ -6,8 +6,8 @@ An internal expense management system for the **Asterix A-BAJA 2027** engineerin
 
 ## Key Features
 
-- **Multimodal AI OCR (Google Gemini)**: Automatically parses uploaded receipt photos or PDFs (`gemini-2.5-flash`), extracting vendor name, invoice date, line items, tax amount, total amount, and suggested subsystem classification.
-- **Automated Google Drive Evidence Vault**: Organizes uploaded bill evidence into a clean Google Drive folder hierarchy (`Bill Evidence/Pending`, `Bill Evidence/Approved/<Subsystem>`, `Bill Evidence/Rejected Bills`) using a Google Cloud Service Account on a Shared Drive.
+- **Multimodal AI OCR (Google Gemini)**: Automatically parses uploaded receipt photos or PDFs using a split-model config — `gemini-2.5-pro` for accurate OCR extraction, `gemini-2.5-flash` for fast analytics queries — extracting vendor name, invoice date, line items, tax amount, total amount, and suggested subsystem classification. Includes retry logic and numeric reconciliation.
+- **Automated Google Drive Evidence Vault**: Organizes uploaded bill evidence into a clean Google Drive folder hierarchy (`Bill Evidence/Pending`, `Bill Evidence/Approved/<Subsystem>`, `Bill Evidence/Rejected Bills`) using OAuth2 Desktop App credentials.
 - **Automated Excel Report Engine (`exceljs`)**: Automatically updates and regenerates Subsystem and Monthly Excel workbooks upon bill approval, uploading formatted reports directly to Google Drive.
 - **Role-Based Access Control (RBAC)**:
   - **Member**: Submit bill drafts, upload attachments, trigger AI extraction, review extracted details, and submit bills for approval. Scope restricted to viewing own bills.
@@ -47,7 +47,7 @@ MongoDB Atlas                 Google Drive API            Google Gemini API
 | **Frontend** | React 18, Vite, TypeScript, Tailwind CSS, Recharts, Lucide Icons |
 | **Backend** | Node.js, Express, TypeScript, Vitest, Mongoose |
 | **Database** | MongoDB Atlas |
-| **File Storage** | Google Drive API v3 (Service Account + Shared Drive) |
+| **File Storage** | Google Drive API v3 (OAuth2 Desktop App credentials) |
 | **AI / OCR** | Google Gemini API (`@google/genai`, Structured JSON Schema) |
 | **Authentication** | JWT (JSON Web Tokens) & bcrypt password hashing |
 | **Hosting** | Vercel (Frontend SPA), Render (Backend Express API) |
@@ -107,7 +107,7 @@ Detailed specifications and guides are organized under the [`docs/`](docs) folde
 
 - **Node.js**: v20+
 - **MongoDB Atlas**: Cluster connection string
-- **Google Cloud Platform**: Shared Drive ID, Service Account credentials, and root folder ID
+- **Google Cloud Platform**: OAuth2 client credentials (Client ID, Secret, Refresh Token) and Drive root folder ID
 - **Google AI Studio**: Gemini API key
 
 ### 1. Backend Setup
@@ -144,8 +144,8 @@ See `.env.example` at the repository root for required values:
 - `FRONTEND_URL` - Allowed CORS origin (e.g. `http://localhost:5173` or production Vercel URL)
 - `MONGODB_URI` - MongoDB Atlas connection string
 - `JWT_SECRET` & `JWT_EXPIRES_IN` - Authentication security configuration
-- `GEMINI_API_KEY` & `GEMINI_MODEL` - Google AI key (`gemini-2.5-flash`)
-- `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_DRIVE_SHARED_DRIVE_ID`, `GOOGLE_DRIVE_ROOT_FOLDER_ID` - Google Drive API integration secrets
+- `GEMINI_API_KEY`, `GEMINI_MODEL` (`gemini-2.5-flash` for analytics), `GEMINI_OCR_MODEL` (`gemini-2.5-pro` for OCR)
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_DRIVE_ROOT_FOLDER_ID` - Google Drive OAuth2 credentials
 - `SEED_TREASURER_USERNAME`, `SEED_TREASURER_PASSWORD`, `SEED_MEMBER_USERNAME`, `SEED_MEMBER_PASSWORD` - Initial seed credentials
 
 ---
