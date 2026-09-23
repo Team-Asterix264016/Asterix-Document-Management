@@ -76,12 +76,36 @@ function buildPrompt(existingSubsystems: string[]): string {
 Read the attached bill evidence (image or PDF) and extract structured information.
 
 Rules you MUST follow:
-- Never invent or guess values. If information cannot be reliably determined from the evidence, use null.
-- Use INR as the default currency only if no other currency is clearly indicated on the bill.
-- Preserve numeric values exactly as they appear; do not round or reformat.
-- suggestedSubsystem must be chosen from this existing list when one clearly fits: ${existingSubsystems.join(", ")}.
-- If no existing subsystem fits well, leave suggestedSubsystem null and instead propose a short, sensible new subsystem name in suggestedNewSubsystem.
-- Do not set both suggestedSubsystem and suggestedNewSubsystem.
+
+1. NEVER invent or guess values. If information cannot be reliably determined from the evidence, use null.
+2. Use INR as the default currency only if no other currency is clearly indicated on the bill.
+3. Preserve numeric values exactly as they appear; do not round or reformat.
+
+TAX RULES:
+- The "tax" field must be the TOTAL of all tax components. If the bill shows CGST + SGST, sum them. If it shows IGST alone, use that. If it shows VAT, use that. Never report only one component of a split tax.
+- If the bill lists tax as a percentage, compute the absolute amount and report that.
+
+DATE RULES:
+- For Indian bills, assume DD/MM/YYYY format unless the bill explicitly uses a different format (e.g. "Jan 15, 2027"). Never swap day and month.
+- Output dates in ISO 8601 format (YYYY-MM-DD).
+
+VENDOR / PAYER RULES:
+- The "vendor" is the SELLER — the business that issued the bill. It is NOT the buyer or payer.
+- Look for the company name, letterhead, or "Sold by" / "From" fields.
+
+INVOICE NUMBER RULES:
+- Prefer the printed invoice number, bill number, or receipt number.
+- Ignore UPI transaction references, payment gateway IDs, or bank reference numbers unless no invoice number exists at all.
+
+HANDWRITTEN OVERRIDES:
+- If a handwritten total, correction, or annotation is visible on the bill, prefer the handwritten value over the printed one. Add a warning noting the handwritten override.
+
+SUBSYSTEM CLASSIFICATION:
+- suggestedSubsystem must be chosen ONLY from this existing list: ${existingSubsystems.join(", ")}.
+- If no existing subsystem is a clear fit, leave suggestedSubsystem as null and instead propose a short, descriptive name in suggestedNewSubsystem.
+- NEVER set both suggestedSubsystem and suggestedNewSubsystem. Only one may be non-null.
+
+GENERAL:
 - Add a warning string for any field that is ambiguous, low-quality, handwritten, or partially illegible.
 - confidence should rate vendor, totalAmount, billDate, and subsystem as HIGH, MEDIUM, or LOW.
 - You are only an assistant. You never approve, reject, or finalize a bill. A human always reviews and confirms your output.
@@ -100,6 +124,41 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
+function isTransientError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  if (msg.includes("fetch failed") || msg.includes("econnreset") || msg.includes("etimedout") || msg.includes("network")) return true;
+  const statusMatch = msg.match(/(\d{3})/);
+  if (statusMatch) {
+    const code = Number(statusMatch[1]);
+    if (code === 429 || (code >= 500 && code < 600)) return true;
+  }
+  return false;
+}
+
+async function withRetries<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxRetries && isTransientError(err)) {
+        const base = Math.pow(2, attempt) * 1000;
+        const jitter = Math.random() * 500;
+        await new Promise((r) => setTimeout(r, base + jitter));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+function getOcrModel(): string {
+  return env.geminiOcrModel || env.geminiModel;
+}
+
 export async function extractBillData(
   files: Array<{ buffer: Buffer; mimeType: string }>,
   existingSubsystems: string[]
@@ -116,15 +175,17 @@ export async function extractBillData(
     })),
   ];
 
-  const response = await ai.models.generateContent({
-    model: env.geminiModel,
-    contents: [{ role: "user", parts }],
-    config: {
-      responseMimeType: "application/json",
-      responseSchema,
-      temperature: 0.1,
-    },
-  });
+  const response = await withRetries(() =>
+    ai.models.generateContent({
+      model: getOcrModel(),
+      contents: [{ role: "user", parts }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema,
+        temperature: 0.1,
+      },
+    })
+  );
 
   const text = response.text;
   if (!text) {
@@ -133,18 +194,56 @@ export async function extractBillData(
 
   const parsed = JSON.parse(text) as Partial<AiExtractionResult>;
 
-  // Defensive normalization: never trust the model to perfectly match our shape.
+  let suggestedSubsystem = parsed.suggestedSubsystem ?? null;
+  let suggestedNewSubsystem = parsed.suggestedNewSubsystem ?? null;
+
+  if (suggestedSubsystem && suggestedNewSubsystem) {
+    const lowerList = existingSubsystems.map((s) => s.toLowerCase());
+    if (lowerList.includes(suggestedSubsystem.toLowerCase())) {
+      suggestedNewSubsystem = null;
+    } else {
+      suggestedNewSubsystem = suggestedSubsystem;
+      suggestedSubsystem = null;
+    }
+  }
+
+  if (suggestedSubsystem) {
+    const lowerList = existingSubsystems.map((s) => s.toLowerCase());
+    if (!lowerList.includes(suggestedSubsystem.toLowerCase())) {
+      suggestedNewSubsystem = suggestedSubsystem;
+      suggestedSubsystem = null;
+    }
+  }
+
+  const warnings = Array.isArray(parsed.warnings) ? [...parsed.warnings] : [];
+
+  const subtotal = parsed.subtotal ?? null;
+  const tax = parsed.tax ?? null;
+  const discount = parsed.discount ?? null;
+  const additionalCharges = parsed.additionalCharges ?? null;
+  const totalAmount = parsed.totalAmount ?? null;
+
+  if (subtotal != null && totalAmount != null) {
+    const expected = subtotal + (tax ?? 0) - (discount ?? 0) + (additionalCharges ?? 0);
+    const tolerance = Math.max(1, totalAmount * 0.02);
+    if (Math.abs(expected - totalAmount) > tolerance) {
+      warnings.push(
+        `Numeric reconciliation: subtotal(${subtotal}) + tax(${tax ?? 0}) - discount(${discount ?? 0}) + charges(${additionalCharges ?? 0}) = ${expected}, but totalAmount is ${totalAmount}.`
+      );
+    }
+  }
+
   return {
     vendor: parsed.vendor ?? null,
     invoiceNumber: parsed.invoiceNumber ?? null,
     billDate: parsed.billDate ?? null,
     description: parsed.description ?? null,
     currency: parsed.currency ?? "INR",
-    subtotal: parsed.subtotal ?? null,
-    tax: parsed.tax ?? null,
-    discount: parsed.discount ?? null,
-    additionalCharges: parsed.additionalCharges ?? null,
-    totalAmount: parsed.totalAmount ?? null,
+    subtotal,
+    tax,
+    discount,
+    additionalCharges,
+    totalAmount,
     items: Array.isArray(parsed.items)
       ? parsed.items.map((item) => ({
           name: item.name ?? "Item",
@@ -155,10 +254,10 @@ export async function extractBillData(
           total: item.total ?? null,
         }))
       : [],
-    suggestedSubsystem: parsed.suggestedSubsystem ?? null,
-    suggestedNewSubsystem: parsed.suggestedNewSubsystem ?? null,
+    suggestedSubsystem,
+    suggestedNewSubsystem,
     confidence: parsed.confidence ?? {},
-    warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
+    warnings,
   };
 }
 
@@ -190,8 +289,6 @@ export async function queryBillsWithAi(
   billsSummary: AiQueryBillSummary[],
   totalCount = billsSummary.length
 ): Promise<{ answer: string; matchingBillNumbers: string[] }> {
-  // Defensive cap even if the caller passes a larger set — keeps prompt size (and Gemini
-  // cost/latency) bounded regardless of how many bills the project accumulates over time.
   const bounded = billsSummary.slice(0, AI_QUERY_MAX_BILLS);
 
   if (!env.geminiApiKey) {

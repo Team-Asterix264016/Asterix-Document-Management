@@ -6,7 +6,7 @@
 - Node.js 20+
 - npm 10+
 - MongoDB Atlas cluster URI
-- Google Cloud Platform Service Account JSON credentials
+- Google Cloud Platform OAuth2 client credentials (Client ID, Client Secret, Refresh Token)
 - Gemini API Key
 
 ---
@@ -25,7 +25,7 @@
    npm install
    cp ../.env.example .env
    ```
-   Fill in `.env` variables (`MONGODB_URI`, `GEMINI_API_KEY`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, etc.).
+   Fill in `.env` variables (`MONGODB_URI`, `GEMINI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, etc.).
 
 3. **Database Seeding**:
    ```bash

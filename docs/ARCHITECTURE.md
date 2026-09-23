@@ -28,12 +28,14 @@ The **Asterix A-BAJA 2027 Bill & Expense Management System** is a dedicated inte
 ## 2. Core Subsystems & Services
 
 ### A. Multimodal AI Processing (`geminiService.ts`)
-- Utilizes Google Gemini (`gemini-2.5-flash`) with structured JSON schema responses (`responseSchema`).
+- Uses a split-model configuration: `gemini-2.5-flash` for analytics queries (fast, cost-effective) and `gemini-2.5-pro` for OCR extraction (higher accuracy on receipts and invoices).
+- Both models use structured JSON schema responses (`responseSchema`).
 - Processes uploaded receipt photos (JPEG, PNG, WEBP) or PDFs.
 - Extracts vendor name, bill date, line items, tax amount, total amount, and predicts the matching team subsystem.
+- Includes retry logic and numeric reconciliation to ensure extracted totals are consistent.
 
 ### B. Google Drive Evidence Vault (`driveService.ts`)
-- Authenticates via a Google Cloud Service Account against a Shared Drive.
+- Authenticates via OAuth2 (desktop-app client credentials + refresh token).
 - Dynamically maintains folder structures:
   - `Bill Evidence/Pending`
   - `Bill Evidence/Approved/<Subsystem>`
