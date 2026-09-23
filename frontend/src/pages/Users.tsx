@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users as UsersIcon, Key, AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
+import { Key, AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
 import { usersApi, apiErrorMessage } from "../api/client";
 import type { User, Role } from "../types";
 
@@ -51,7 +51,7 @@ export function Users() {
     setIsResetting(true);
 
     try {
-      const userId = (selectedUser as any)._id || selectedUser.id;
+      const userId = (selectedUser as User & { _id?: string })._id || selectedUser.id;
       await usersApi.resetPassword(userId, newPassword);
       setResetSuccess(true);
       setTimeout(() => {
@@ -137,7 +137,7 @@ export function Users() {
             </thead>
             <tbody className="divide-y divide-line">
               {users.map((user) => (
-                <tr key={(user as any)._id || user.id} className="transition-colors hover:bg-canvas">
+                <tr key={(user as User & { _id?: string })._id || user.id} className="transition-colors hover:bg-canvas">
                   <td className="px-4 py-3 font-medium text-ink-900">{user.displayName}</td>
                   <td className="px-4 py-3 text-ink-500">{user.username}</td>
                   <td className="px-4 py-3">
