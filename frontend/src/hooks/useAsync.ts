@@ -15,6 +15,8 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []): AsyncSt
 
   useEffect(() => {
     let cancelled = false;
+    // Intentional: flip back to loading whenever the inputs change so stale data is not shown as current.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState((s) => ({ ...s, loading: true, error: null }));
 
     fn()

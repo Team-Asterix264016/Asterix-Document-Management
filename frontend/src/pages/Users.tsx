@@ -28,20 +28,22 @@ export function Users() {
   });
 
   useEffect(() => {
-    fetchUsers();
+    let cancelled = false;
+    usersApi
+      .getAll()
+      .then((res) => {
+        if (!cancelled) setUsers(res.data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(apiErrorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  async function fetchUsers() {
-    try {
-      setIsLoading(true);
-      const res = await usersApi.getAll();
-      setUsers(res.data);
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
