@@ -133,6 +133,52 @@ describe("AI bill query endpoint", () => {
     expect(typeof res.body.answer).toBe("string");
   });
 
+  it("marks Gemini answers with source 'ai' and no notice", async () => {
+    const subsystem = await createSubsystem();
+    const member = await createUser({ username: "m1", password: "pass1234", role: "MEMBER" });
+    await createApprovedBill(member.user.id, subsystem.id, { invoiceNumber: "INV-1" });
+    generateContentMock.mockResolvedValue({ text: JSON.stringify({ answer: "**₹1,000** spent.", matchingBillNumbers: ["INV-1"] }) });
+
+    const token = await loginAs("m1", member.password);
+    const res = await request(app).post("/api/analytics/ai-query").set("Authorization", `Bearer ${token}`).send({ query: "total spend" });
+
+    expect(res.body.source).toBe("ai");
+    expect(res.body.notice).toBeUndefined();
+    expect(res.body.answer).toBe("**₹1,000** spent.");
+  });
+
+  it("tells the user when the Gemini API key is invalid", async () => {
+    const subsystem = await createSubsystem();
+    const member = await createUser({ username: "m1", password: "pass1234", role: "MEMBER" });
+    await createApprovedBill(member.user.id, subsystem.id);
+    generateContentMock.mockRejectedValue(new Error('{"error":{"code":400,"message":"API key not valid.","status":"INVALID_ARGUMENT","reason":"API_KEY_INVALID"}}'));
+
+    const token = await loginAs("m1", member.password);
+    const res = await request(app).post("/api/analytics/ai-query").set("Authorization", `Bearer ${token}`).send({ query: "anything" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe("fallback");
+    expect(res.body.notice).toMatch(/GEMINI_API_KEY/);
+  });
+
+  it("fallback understands status words and multi-word questions", async () => {
+    const subsystem = await createSubsystem();
+    const member = await createUser({ username: "m1", password: "pass1234", role: "MEMBER" });
+    await createApprovedBill(member.user.id, subsystem.id, { invoiceNumber: "OK-1", vendor: "Steel Mart", totalAmount: 500 });
+    await Bill.create({ uploadedBy: member.user.id, status: "REJECTED", vendor: "Steel Mart", invoiceNumber: "NO-1", totalAmount: 200, rejectionReason: "blurry" });
+    generateContentMock.mockRejectedValue(new Error("network down"));
+
+    const token = await loginAs("m1", member.password);
+    const res = await request(app)
+      .post("/api/analytics/ai-query")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ query: "Show me the rejected bills from Steel Mart" });
+
+    const numbers = res.body.matchingBills.map((b: { billNumber: string }) => b.billNumber);
+    expect(numbers).toEqual(["NO-1"]);
+    expect(res.body.answer).toMatch(/₹200/);
+  });
+
   it("returns an empty-but-successful result when there are no bills at all", async () => {
     const member = await createUser({ username: "m1", password: "pass1234", role: "MEMBER" });
     generateContentMock.mockResolvedValue({ text: JSON.stringify({ answer: "No bills found.", matchingBillNumbers: [] }) });
