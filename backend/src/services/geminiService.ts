@@ -136,6 +136,30 @@ function isTransientError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Caps a single Gemini call. The SDK is given an AbortSignal so the underlying
+ * HTTP request is torn down, and the race guarantees the caller is released
+ * even if the SDK ignores the signal.
+ */
+async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, label: string): Promise<T> {
+  const controller = new AbortController();
+  const timeoutMs = env.geminiTimeoutMs;
+  let timer: NodeJS.Timeout | undefined;
+
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([fn(controller.signal), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function withRetries<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -176,15 +200,20 @@ export async function extractBillData(
   ];
 
   const response = await withRetries(() =>
-    ai.models.generateContent({
-      model: getOcrModel(),
-      contents: [{ role: "user", parts }],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema,
-        temperature: 0.1,
-      },
-    })
+    withTimeout(
+      (abortSignal) =>
+        ai.models.generateContent({
+          model: getOcrModel(),
+          contents: [{ role: "user", parts }],
+          config: {
+            responseMimeType: "application/json",
+            responseSchema,
+            temperature: 0.1,
+            abortSignal,
+          },
+        }),
+      "Gemini bill extraction"
+    )
   );
 
   const text = response.text;
@@ -327,14 +356,19 @@ Return a JSON object with:
 - "matchingBillNumbers": Array of string bill numbers relevant to the answer.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: env.geminiModel,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
-      },
-    });
+    const response = await withTimeout(
+      (abortSignal) =>
+        ai.models.generateContent({
+          model: env.geminiModel,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.2,
+            abortSignal,
+          },
+        }),
+      "Gemini AI query"
+    );
 
     const text = response.text;
     if (text) {
