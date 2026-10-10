@@ -34,6 +34,12 @@ async function seed() {
     { upsert: true }
   );
 
+  // Ensure only the 3 allowed subsystems remain active
+  await Subsystem.updateMany(
+    { name: { $nin: DEFAULT_SUBSYSTEMS } },
+    { active: false }
+  );
+
   for (const name of DEFAULT_SUBSYSTEMS) {
     await Subsystem.findOneAndUpdate({ name }, { name, active: true }, { upsert: true });
   }
@@ -41,7 +47,7 @@ async function seed() {
   console.log("Seed complete:");
   console.log(`  Treasurer username -> ${env.seed.treasurerUsername}`);
   console.log(`  Member username    -> ${env.seed.memberUsername}`);
-  console.log(`  Seeded ${DEFAULT_SUBSYSTEMS.length} default subsystems.`);
+  console.log(`  Seeded ${DEFAULT_SUBSYSTEMS.length} default subsystems: ${DEFAULT_SUBSYSTEMS.join(", ")}`);
   console.log("\nPasswords come from SEED_*_PASSWORD env vars. Set and rotate them before production use.");
 
   await disconnectDB();
