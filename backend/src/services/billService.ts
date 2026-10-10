@@ -149,23 +149,32 @@ async function runAiExtraction(billId: string, files: Array<{ buffer: Buffer; mi
   const subsystems = await Subsystem.find({ active: true }).select("name").lean();
   const subsystemNames = subsystems.map((s) => s.name);
 
+  // Extraction can take a long time (Gemini retries with backoff). Build the result as a plain
+  // update instead of mutating the loaded document, so a stale copy is never saved over changes
+  // the user made in the meantime (e.g. submitting the bill while it was still PROCESSING).
+  let fields: Record<string, unknown> = {};
+  let aiExtraction: Record<string, unknown>;
+
   try {
     const result = await extractBillData(files, subsystemNames);
+    const billDate = result.billDate ? new Date(result.billDate) : null;
 
-    bill.vendor = result.vendor;
-    bill.vendorNormalized = result.vendor ? normalizeVendorName(result.vendor) : null;
-    bill.invoiceNumber = result.invoiceNumber;
-    bill.billDate = result.billDate ? new Date(result.billDate) : null;
-    bill.description = result.description ?? "";
-    bill.currency = result.currency;
-    bill.subtotal = result.subtotal;
-    bill.tax = result.tax;
-    bill.discount = result.discount;
-    bill.additionalCharges = result.additionalCharges;
-    bill.totalAmount = result.totalAmount;
-    bill.items = result.items as never;
+    fields = {
+      vendor: result.vendor,
+      vendorNormalized: result.vendor ? normalizeVendorName(result.vendor) : null,
+      invoiceNumber: result.invoiceNumber,
+      billDate,
+      description: result.description ?? "",
+      currency: result.currency,
+      subtotal: result.subtotal,
+      tax: result.tax,
+      discount: result.discount,
+      additionalCharges: result.additionalCharges,
+      totalAmount: result.totalAmount,
+      items: result.items,
+    };
 
-    bill.aiExtraction = {
+    aiExtraction = {
       processed: true,
       confidence: result.confidence,
       suggestedSubsystem: result.suggestedSubsystem,
@@ -180,18 +189,16 @@ async function runAiExtraction(billId: string, files: Array<{ buffer: Buffer; mi
         _id: bill._id as Types.ObjectId,
         vendor: result.vendor,
         invoiceNumber: result.invoiceNumber,
-        billDate: bill.billDate,
+        billDate,
         totalAmount: result.totalAmount,
       });
-      bill.duplicateCheck = {
+      fields.duplicateCheck = {
         possibleDuplicate: matches.length > 0,
-        matches: matches.map((m) => ({ billId: m.billId, reason: m.reason })) as never,
+        matches: matches.map((m) => ({ billId: m.billId, reason: m.reason })),
       };
     }
-
-    bill.status = "DRAFT";
   } catch (err) {
-    bill.aiExtraction = {
+    aiExtraction = {
       processed: false,
       confidence: {},
       suggestedSubsystem: null,
@@ -200,10 +207,17 @@ async function runAiExtraction(billId: string, files: Array<{ buffer: Buffer; mi
       processedAt: new Date(),
       error: (err as Error).message || "AI processing failed",
     };
-    bill.status = "DRAFT";
   }
 
-  await bill.save();
+  // Apply only if the bill is still waiting on AI and the user has not taken over.
+  const applied = await Bill.updateOne(
+    { _id: bill._id, status: { $in: ["DRAFT", "PROCESSING"] }, userEdited: { $ne: true } },
+    { $set: { ...fields, aiExtraction, status: "DRAFT" } }
+  );
+  if (applied.matchedCount === 0) {
+    // The bill moved on while AI was running: keep the diagnostics, never touch its values or status.
+    await Bill.updateOne({ _id: bill._id }, { $set: { aiExtraction } });
+  }
 }
 
 const EDITABLE_STATUSES = ["DRAFT", "PROCESSING", "REJECTED"];

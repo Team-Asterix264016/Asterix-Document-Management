@@ -109,7 +109,7 @@ export function AddBill() {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
-  function updateItem(index: number, key: keyof BillItem, value: any) {
+  function updateItem<K extends keyof BillItem>(index: number, key: K, value: BillItem[K] | null) {
     setForm((prev) => {
       if (!prev) return prev;
       const newItems = [...prev.items];

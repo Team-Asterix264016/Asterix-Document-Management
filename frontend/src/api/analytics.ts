@@ -44,6 +44,10 @@ export async function getApprovals(filters: AnalyticsFilters = {}) {
 
 export interface AiQueryResult {
   answer: string;
+  /** "ai" when Gemini answered, "fallback" when the server used keyword matching. */
+  source?: "ai" | "fallback";
+  /** Why the fallback was used, safe to show to the user. */
+  notice?: string;
   matchingBills: Array<{
     id: string;
     billNumber: string;

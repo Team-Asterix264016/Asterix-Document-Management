@@ -64,6 +64,8 @@ export const queryBillsAi = asyncHandler(async (req: Request, res: Response) => 
 
   res.json({
     answer: result.answer,
+    source: result.source,
+    notice: result.notice,
     matchingBills: matchingBills.map((b) => ({
       id: String(b._id),
       billNumber: b.invoiceNumber || String(b._id),

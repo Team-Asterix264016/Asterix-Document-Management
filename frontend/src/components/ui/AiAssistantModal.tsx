@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Sparkles, X } from "lucide-react";
+import { AlertTriangle, RotateCcw, Sparkles, X } from "lucide-react";
 import { queryBillsAi, type AiQueryResult } from "../../api/analytics";
 import { apiErrorMessage } from "../../api/client";
 import { StatusBadge } from "./StatusBadge";
+import { Markdown } from "./Markdown";
 import { formatINR, formatDate } from "../../utils/format";
 import type { BillStatus } from "../../types";
 
@@ -24,6 +25,13 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiQueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
+
+  function reset() {
+    setQuery("");
+    setResult(null);
+    setError(null);
+  }
 
   useEffect(() => {
     if (!isOpen) return;
@@ -45,8 +53,9 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await queryBillsAi(searchQuery);
+      const res = await queryBillsAi(searchQuery.trim());
       setResult(res);
+      setRecent((prev) => [searchQuery.trim(), ...prev.filter((q) => q !== searchQuery.trim())].slice(0, 4));
     } catch (err) {
       setError(apiErrorMessage(err, "AI Assistant is unavailable right now. Please try again."));
     } finally {
@@ -71,16 +80,24 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
         <div className="flex items-center justify-between border-b border-line bg-canvas/60 px-6 py-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent">
-              <Sparkles className="h-4.5 w-4.5" strokeWidth={1.75} />
+              <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.75} />
             </div>
             <div>
               <h3 className="text-base font-semibold text-ink-900">AI Bill Assistant</h3>
               <p className="text-xs text-ink-500">Ask about bills, spend, or vendors in plain language</p>
             </div>
           </div>
+          <div className="flex items-center gap-1">
+            {(result || error) && !loading && (
+              <button onClick={reset} className="btn-ghost !px-2.5 !py-1.5 text-xs" aria-label="Ask a new question">
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
+                New question
+              </button>
+            )}
           <button onClick={onClose} aria-label="Close" className="rounded-sm p-1.5 text-ink-500 transition-colors hover:bg-canvas hover:text-ink-900">
             <X className="h-5 w-5" strokeWidth={2} />
           </button>
+          </div>
         </div>
 
         <div className="max-h-[75vh] space-y-6 overflow-y-auto p-6">
@@ -96,6 +113,7 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="e.g. Total spent on Powertrain this month…"
+              maxLength={500}
               className="field-input pr-24"
               autoFocus
             />
@@ -106,9 +124,11 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
 
           {!result && !loading && (
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-ink-500">Suggested Queries</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-ink-500">
+                {recent.length > 0 ? "Recent & suggested" : "Suggested questions"}
+              </p>
               <div className="flex flex-wrap gap-2">
-                {SAMPLE_PROMPTS.map((prompt) => (
+                {[...recent, ...SAMPLE_PROMPTS.filter((p) => !recent.includes(p))].map((prompt) => (
                   <button
                     key={prompt}
                     onClick={() => {
@@ -137,9 +157,18 @@ export function AiAssistantModal({ isOpen, onClose }: AiAssistantModalProps) {
 
           {result && !loading && (
             <div className="space-y-4">
-              <div className="whitespace-pre-line rounded-sm border border-line bg-canvas p-4 text-sm leading-relaxed text-ink-800">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">Answer</p>
-                {result.answer}
+              {result.notice && (
+                <div className="flex items-start gap-2 rounded-sm border border-status-pending/30 bg-status-pendingSoft p-3 text-xs text-status-pending">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  <span>{result.notice}</span>
+                </div>
+              )}
+              <div className="rounded-sm border border-line bg-canvas p-4 text-sm leading-relaxed text-ink-700">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent">
+                  <Sparkles className="h-3 w-3" strokeWidth={2} />
+                  {result.source === "fallback" ? "Quick summary" : "AI answer"}
+                </p>
+                <Markdown text={result.answer} />
               </div>
 
               {result.matchingBills.length > 0 && (
