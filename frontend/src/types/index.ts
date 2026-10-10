@@ -148,6 +148,7 @@ export interface InventoryItem {
   location: string;
   status: InventoryStatus;
   assignedTo?: { _id: string; displayName: string; username: string } | null;
+  assignedToAll?: boolean;
   assignedAt?: string | null;
   expectedReturnDate?: string | null;
   missingDetails: MissingDetails;
@@ -159,8 +160,10 @@ export interface InventoryItem {
 
 export interface InventoryStats {
   total: number;
-  available: number;
-  checkedOut: number;
+  assignedAll?: number;
+  assignedIndividual?: number;
+  available?: number;
+  checkedOut?: number;
   missing: number;
   installed: number;
   toBuyPending: number;

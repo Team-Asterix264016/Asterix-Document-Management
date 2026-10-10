@@ -35,7 +35,12 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
     filter.category = category;
   }
 
-  if (assignedTo) {
+  if (assignedTo === "ALL") {
+    filter.assignedToAll = true;
+  } else if (assignedTo === "INDIVIDUAL") {
+    filter.assignedToAll = false;
+    filter.assignedTo = { $ne: null };
+  } else if (assignedTo) {
     filter.assignedTo = assignedTo;
   }
 
@@ -80,11 +85,11 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const getInventoryStats = asyncHandler(async (_req: Request, res: Response) => {
-  const [totalCount, availableCount, checkedOutCount, missingCount, installedCount, toBuyPending] =
+  const [totalCount, assignedAllCount, assignedIndividualCount, missingCount, installedCount, toBuyPending] =
     await Promise.all([
       InventoryItem.countDocuments(),
-      InventoryItem.countDocuments({ status: "AVAILABLE" }),
-      InventoryItem.countDocuments({ status: "CHECKED_OUT" }),
+      InventoryItem.countDocuments({ assignedToAll: true }),
+      InventoryItem.countDocuments({ assignedToAll: false, assignedTo: { $ne: null } }),
       InventoryItem.countDocuments({ $or: [{ status: "MISSING" }, { "missingDetails.isMissing": true }] }),
       InventoryItem.countDocuments({ status: "INSTALLED" }),
       ToBuyItem.countDocuments({ status: "PENDING" }),
@@ -93,8 +98,8 @@ export const getInventoryStats = asyncHandler(async (_req: Request, res: Respons
   res.json({
     stats: {
       total: totalCount,
-      available: availableCount,
-      checkedOut: checkedOutCount,
+      assignedAll: assignedAllCount,
+      assignedIndividual: assignedIndividualCount,
       missing: missingCount,
       installed: installedCount,
       toBuyPending,
@@ -129,6 +134,8 @@ export const createInventoryItem = asyncHandler(async (req: Request, res: Respon
     quantity = 1,
     unit = "pcs",
     location = "Main Workshop",
+    assignedTo,
+    assignedToAll,
   } = req.body;
 
   if (!name || !name.trim()) {
@@ -136,6 +143,8 @@ export const createInventoryItem = asyncHandler(async (req: Request, res: Respon
   }
 
   const userId = req.user?.sub;
+  const isAll = assignedTo === "ALL" || assignedToAll === true || (!assignedTo && assignedToAll !== false);
+  const targetUser = isAll ? null : (assignedTo || null);
 
   const item = new InventoryItem({
     name: name.trim(),
@@ -147,14 +156,20 @@ export const createInventoryItem = asyncHandler(async (req: Request, res: Respon
     unit: (unit || "pcs").trim(),
     location: (location || "Main Workshop").trim(),
     status: "AVAILABLE",
+    assignedToAll: isAll,
+    assignedTo: targetUser,
+    assignedAt: isAll ? null : new Date(),
     createdByUser: userId || null,
     history: [
       {
         action: "CREATED",
+        user: targetUser,
         performedBy: userId,
         timestamp: new Date(),
         location: (location || "Main Workshop").trim(),
-        notes: "Initial registration into inventory",
+        notes: isAll
+          ? "Initial registration (Assigned to All Members)"
+          : "Initial registration (Assigned to team member)",
       },
     ],
   });
@@ -176,6 +191,8 @@ export const updateInventoryItem = asyncHandler(async (req: Request, res: Respon
     unit,
     location,
     status,
+    assignedTo,
+    assignedToAll,
   } = req.body;
 
   const item = await InventoryItem.findById(id);
@@ -194,6 +211,28 @@ export const updateInventoryItem = asyncHandler(async (req: Request, res: Respon
   if (quantity !== undefined) item.quantity = Math.max(0, Number(quantity));
   if (unit !== undefined) item.unit = unit.trim();
   if (status !== undefined) item.status = status as InventoryStatus;
+
+  // Handle assignment changes directly
+  if (assignedTo !== undefined || assignedToAll !== undefined) {
+    const isAll = assignedTo === "ALL" || assignedToAll === true || (assignedTo === "" && assignedToAll !== false);
+    const targetUser = isAll ? null : (assignedTo || null);
+    const changed = item.assignedToAll !== isAll || String(item.assignedTo || "") !== String(targetUser || "");
+
+    if (changed) {
+      item.assignedToAll = isAll;
+      item.assignedTo = targetUser as any;
+      item.assignedAt = isAll ? null : new Date();
+
+      item.history.push({
+        action: "UPDATED",
+        user: targetUser,
+        performedBy: userId as any,
+        timestamp: new Date(),
+        location: item.location,
+        notes: isAll ? "Reassigned to All Members (Shared)" : "Custody assigned to team member",
+      });
+    }
+  }
 
   if (location !== undefined && location.trim() && location.trim() !== oldLocation) {
     item.location = location.trim();

@@ -62,6 +62,7 @@ const inventoryItemSchema = new Schema(
       index: true,
     },
     assignedTo: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    assignedToAll: { type: Boolean, default: true, index: true },
     assignedAt: { type: Date, default: null },
     expectedReturnDate: { type: Date, default: null },
     missingDetails: { type: missingDetailsSchema, default: () => ({ isMissing: false }) },
