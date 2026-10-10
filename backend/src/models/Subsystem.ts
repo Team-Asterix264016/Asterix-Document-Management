@@ -23,15 +23,6 @@ export const Subsystem = model("Subsystem", subsystemSchema);
 
 export const DEFAULT_SUBSYSTEMS = [
   "Mechanical",
-  "Electrical",
-  "Electronics",
   "Powertrain",
-  "Vehicle",
-  "Fabrication",
-  "Sensors & Perception",
-  "Software",
-  "Safety",
-  "Testing",
-  "Travel / Logistics",
-  "Other",
+  "Software and Perception",
 ];

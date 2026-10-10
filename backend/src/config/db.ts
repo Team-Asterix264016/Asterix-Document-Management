@@ -2,9 +2,11 @@ import mongoose from "mongoose";
 import { env } from "./env.js";
 import { User } from "../models/User.js";
 import { Bill } from "../models/Bill.js";
-import { Subsystem } from "../models/Subsystem.js";
+import { Subsystem, DEFAULT_SUBSYSTEMS } from "../models/Subsystem.js";
 import { Vendor } from "../models/Vendor.js";
 import { Report } from "../models/Report.js";
+import { InventoryItem } from "../models/InventoryItem.js";
+import { ToBuyItem } from "../models/ToBuyItem.js";
 
 const CONNECT_OPTIONS: mongoose.ConnectOptions = {
   maxPoolSize: 10,
@@ -43,7 +45,15 @@ export function dbStatus(): string {
 }
 
 async function syncIndexes(): Promise<void> {
-  await Promise.all([User.init(), Bill.init(), Subsystem.init(), Vendor.init(), Report.init()]);
+  await Promise.all([
+    User.init(),
+    Bill.init(),
+    Subsystem.init(),
+    Vendor.init(),
+    Report.init(),
+    InventoryItem.init(),
+    ToBuyItem.init(),
+  ]);
 }
 
 export async function connectDB(): Promise<void> {
@@ -57,6 +67,19 @@ export async function connectDB(): Promise<void> {
   console.log("Connecting to MongoDB Atlas...");
   await mongoose.connect(env.mongodbUri, CONNECT_OPTIONS);
   console.log("Connected to MongoDB Atlas.");
+
+  // Ensure default subsystems exist
+  try {
+    for (const name of DEFAULT_SUBSYSTEMS) {
+      await Subsystem.findOneAndUpdate(
+        { name },
+        { $setOnInsert: { name, active: true } },
+        { upsert: true }
+      );
+    }
+  } catch (err) {
+    console.warn("Subsystem initialization warning (continuing):", err instanceof Error ? err.message : err);
+  }
 
   // Index sync is best-effort: a failure here must not take the API down.
   try {
