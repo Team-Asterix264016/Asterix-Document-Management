@@ -6,6 +6,8 @@ import reportRoutes from "./reports.js";
 import analyticsRoutes from "./analytics.js";
 import exportRoutes from "./exports.js";
 import userRoutes from "./users.js";
+import inventoryRoutes from "./inventory.js";
+import toBuyRoutes from "./toBuy.js";
 
 const router = Router();
 
@@ -17,5 +19,7 @@ router.use("/reports", reportRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/exports", exportRoutes);
 router.use("/users", userRoutes);
+router.use("/inventory", inventoryRoutes);
+router.use("/to-buy", toBuyRoutes);
 
 export default router;

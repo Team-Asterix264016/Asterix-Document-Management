@@ -13,11 +13,13 @@ import {
   Sparkles,
   Heart,
   Users,
+  Boxes,
 } from "lucide-react";
 import { AiAssistantModal } from "../ui/AiAssistantModal";
 
 const MEMBER_NAV = [
   { to: "/", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
   { to: "/bills/new", label: "Add Bill", shortLabel: "Add", icon: PlusCircle },
   { to: "/reports", label: "Reports", shortLabel: "Reports", icon: FileBarChart2 },
@@ -26,6 +28,7 @@ const MEMBER_NAV = [
 
 const TREASURER_NAV = [
   { to: "/", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/approval", label: "Pending Approval", shortLabel: "Approve", icon: ClipboardCheck },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
   { to: "/reports", label: "Reports", shortLabel: "Reports", icon: FileBarChart2 },
@@ -34,6 +37,7 @@ const TREASURER_NAV = [
 
 const ADMIN_NAV = [
   { to: "/", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/users", label: "Users", shortLabel: "Users", icon: Users },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
   { to: "/reports", label: "Reports", shortLabel: "Reports", icon: FileBarChart2 },
@@ -74,7 +78,7 @@ export function AppShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === "/" || item.to === "/bills"}
+                end={item.to === "/" || item.to === "/bills" || item.to === "/inventory"}
                 className={({ isActive }) =>
                   clsx(
                     "group flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
@@ -147,7 +151,7 @@ export function AppShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === "/" || item.to === "/bills"}
+                end={item.to === "/" || item.to === "/bills" || item.to === "/inventory"}
                 className={({ isActive }) =>
                   clsx(
                     "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",

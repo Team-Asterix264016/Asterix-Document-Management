@@ -105,3 +105,88 @@ export interface Report {
   generatedAt: string;
   totals: { total?: number; count?: number };
 }
+
+export type InventoryStatus = "AVAILABLE" | "CHECKED_OUT" | "INSTALLED" | "MISSING" | "DAMAGED";
+export type CustodyAction =
+  | "CREATED"
+  | "CHECKOUT"
+  | "CHECKIN"
+  | "TRANSFER"
+  | "RELOCATED"
+  | "MARKED_MISSING"
+  | "MARKED_FOUND"
+  | "UPDATED";
+
+export interface CustodyHistoryEntry {
+  _id?: string;
+  action: CustodyAction;
+  user?: { _id: string; displayName: string; username: string } | null;
+  performedBy: { _id: string; displayName: string; username: string };
+  timestamp: string;
+  location?: string;
+  notes?: string;
+}
+
+export interface MissingDetails {
+  isMissing: boolean;
+  reportedBy?: { _id: string; displayName: string; username: string } | null;
+  reportedAt?: string | null;
+  lastKnownLocation?: string;
+  lastKnownHolder?: { _id: string; displayName: string; username: string } | null;
+  notes?: string;
+}
+
+export interface InventoryItem {
+  _id: string;
+  name: string;
+  partNumber: string;
+  subsystem?: { _id: string; name: string } | null;
+  category: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  location: string;
+  status: InventoryStatus;
+  assignedTo?: { _id: string; displayName: string; username: string } | null;
+  assignedAt?: string | null;
+  expectedReturnDate?: string | null;
+  missingDetails: MissingDetails;
+  history: CustodyHistoryEntry[];
+  createdByUser?: { _id: string; displayName: string; username: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryStats {
+  total: number;
+  available: number;
+  checkedOut: number;
+  missing: number;
+  installed: number;
+  toBuyPending: number;
+}
+
+export type ToBuyPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type ToBuyStatus = "PENDING" | "APPROVED" | "ORDERED" | "PURCHASED" | "CANCELLED";
+
+export interface ToBuyItem {
+  _id: string;
+  itemName: string;
+  subsystem?: { _id: string; name: string } | null;
+  category: string;
+  quantity: number;
+  unit: string;
+  estimatedCost: number;
+  priority: ToBuyPriority;
+  status: ToBuyStatus;
+  supplierUrl?: string;
+  suggestedVendor?: string;
+  notes?: string;
+  requestedBy: { _id: string; displayName: string; username: string };
+  approvedBy?: { _id: string; displayName: string; username: string } | null;
+  sourceInventoryItem?: { _id: string; name: string; partNumber?: string; location?: string } | null;
+  linkedBillId?: { _id: string; invoiceNumber?: string; totalAmount?: number; status: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+

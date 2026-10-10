@@ -11,7 +11,7 @@ import { AddBill } from "./pages/AddBill";
 import { Approval } from "./pages/Approval";
 import { Reports } from "./pages/Reports";
 import { Analytics } from "./pages/Analytics";
-
+import { Inventory } from "./pages/Inventory";
 import { Users } from "./pages/Users";
 
 export default function App() {
@@ -25,6 +25,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/inventory" element={<Inventory />} />
                 <Route path="/bills" element={<Bills />} />
                 <Route path="/bills/new" element={<AddBill />} />
                 <Route path="/bills/:id" element={<BillDetails />} />
