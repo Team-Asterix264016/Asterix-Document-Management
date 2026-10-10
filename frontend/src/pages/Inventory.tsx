@@ -4,7 +4,6 @@ import { listInventory, getInventoryStats, deleteInventoryItem } from "../api/in
 import { listSubsystems } from "../api/subsystems";
 import { InventoryStatsCards } from "../components/inventory/InventoryStatsCards";
 import { InventoryStatusBadge } from "../components/inventory/InventoryStatusBadge";
-import { CustodyModal } from "../components/inventory/CustodyModal";
 import { MissingModal } from "../components/inventory/MissingModal";
 import { AddComponentModal } from "../components/inventory/AddComponentModal";
 import { ItemDetailsModal } from "../components/inventory/ItemDetailsModal";
@@ -18,16 +17,17 @@ import {
   LayoutGrid,
   List,
   MapPin,
-  UserCheck,
+  Users,
+  User,
   AlertOctagon,
   Eye,
   Trash2,
   Layers,
   ChevronLeft,
   ChevronRight,
-  Filter,
   ShoppingCart,
   Hash,
+  Edit,
 } from "lucide-react";
 
 type ActiveTab = "ALL" | "MISSING" | "TO_BUY";
@@ -43,6 +43,7 @@ export function Inventory() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [assignedFilter, setAssignedFilter] = useState("");
   const [subsystemFilter, setSubsystemFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
@@ -54,8 +55,8 @@ export function Inventory() {
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [isAddToBuyModalOpen, setIsAddToBuyModalOpen] = useState(false);
-  const [custodyModalItem, setCustodyModalItem] = useState<InventoryItem | null>(null);
   const [missingModalItem, setMissingModalItem] = useState<InventoryItem | null>(null);
   const [detailsModalItemId, setDetailsModalItemId] = useState<string | null>(null);
 
@@ -86,6 +87,7 @@ export function Inventory() {
       const res = await listInventory({
         q: searchQuery.trim() || undefined,
         status: isMissingTab ? "MISSING" : statusFilter === "ALL" ? undefined : statusFilter,
+        assignedTo: assignedFilter || undefined,
         isMissing: isMissingTab ? true : undefined,
         subsystem: subsystemFilter || undefined,
         category: categoryFilter || undefined,
@@ -101,7 +103,7 @@ export function Inventory() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, statusFilter, subsystemFilter, categoryFilter, page, push]);
+  }, [activeTab, searchQuery, statusFilter, assignedFilter, subsystemFilter, categoryFilter, page, push]);
 
   useEffect(() => {
     fetchStats();
@@ -118,10 +120,22 @@ export function Inventory() {
     } else if (filterKey === "MISSING") {
       setActiveTab("MISSING");
       setStatusFilter("ALL");
+      setAssignedFilter("");
+      setPage(1);
+    } else if (filterKey === "ASSIGNED_ALL") {
+      setActiveTab("ALL");
+      setAssignedFilter("ALL");
+      setStatusFilter("ALL");
+      setPage(1);
+    } else if (filterKey === "ASSIGNED_INDIVIDUAL") {
+      setActiveTab("ALL");
+      setAssignedFilter("INDIVIDUAL");
+      setStatusFilter("ALL");
       setPage(1);
     } else {
       setActiveTab("ALL");
       setStatusFilter(filterKey);
+      setAssignedFilter("");
       setPage(1);
     }
   };
@@ -152,7 +166,7 @@ export function Inventory() {
                 Inventory & Hardware Hub
               </h1>
               <p className="text-xs text-ink-500">
-                Track workshop components, member custody, missing parts, and restock tickets
+                Track workshop components, custody assignments (individual or shared), missing gear, and restock tickets
               </p>
             </div>
           </div>
@@ -169,7 +183,10 @@ export function Inventory() {
           </button>
 
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              setEditingItem(null);
+              setIsAddModalOpen(true);
+            }}
             className="btn-primary text-xs"
           >
             <Plus className="h-4 w-4" />
@@ -181,7 +198,17 @@ export function Inventory() {
       {/* KPI Stats Cards */}
       <InventoryStatsCards
         stats={stats}
-        activeFilter={activeTab === "TO_BUY" ? "TO_BUY" : activeTab === "MISSING" ? "MISSING" : statusFilter}
+        activeFilter={
+          activeTab === "TO_BUY"
+            ? "TO_BUY"
+            : activeTab === "MISSING"
+            ? "MISSING"
+            : assignedFilter === "ALL"
+            ? "ASSIGNED_ALL"
+            : assignedFilter === "INDIVIDUAL"
+            ? "ASSIGNED_INDIVIDUAL"
+            : statusFilter
+        }
         onSelectFilter={handleStatsFilter}
       />
 
@@ -268,10 +295,26 @@ export function Inventory() {
                 />
               </div>
 
-              {/* Status Filter (only on ALL tab) */}
+              {/* Custody Assignment Filter */}
               {activeTab === "ALL" && (
                 <select
-                  className="field-input py-1.5 text-xs w-auto sm:max-w-[150px]"
+                  className="field-input py-1.5 text-xs w-auto sm:max-w-[170px]"
+                  value={assignedFilter}
+                  onChange={(e) => {
+                    setAssignedFilter(e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="">All Custody</option>
+                  <option value="ALL">👥 Shared (All Members)</option>
+                  <option value="INDIVIDUAL">👤 Assigned to Individual</option>
+                </select>
+              )}
+
+              {/* Status Filter */}
+              {activeTab === "ALL" && (
+                <select
+                  className="field-input py-1.5 text-xs w-auto sm:max-w-[140px]"
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value);
@@ -280,7 +323,6 @@ export function Inventory() {
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="AVAILABLE">Available</option>
-                  <option value="CHECKED_OUT">Checked Out</option>
                   <option value="INSTALLED">On Vehicle</option>
                   <option value="MISSING">Missing</option>
                   <option value="DAMAGED">Damaged</option>
@@ -351,12 +393,15 @@ export function Inventory() {
               </h3>
               <p className="mt-1 text-xs text-ink-500">
                 {activeTab === "MISSING"
-                  ? "All tracked hardware is accounted for in workshop storage or checked out."
+                  ? "All tracked hardware is accounted for in workshop storage."
                   : "Try clearing filters or add your first component."}
               </p>
               {activeTab === "ALL" && (
                 <button
-                  onClick={() => setIsAddModalOpen(true)}
+                  onClick={() => {
+                    setEditingItem(null);
+                    setIsAddModalOpen(true);
+                  }}
                   className="btn-primary mt-4 text-xs"
                 >
                   <Plus className="h-4 w-4" />
@@ -369,7 +414,6 @@ export function Inventory() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((item) => {
                 const isItemMissing = item.status === "MISSING" || item.missingDetails?.isMissing;
-                const isCheckedOut = item.status === "CHECKED_OUT";
 
                 return (
                   <div
@@ -421,23 +465,29 @@ export function Inventory() {
                         {/* Who has it */}
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-medium text-ink-500 flex items-center gap-1">
-                            <UserCheck className="h-3 w-3 text-ink-400" />
+                            {item.assignedToAll ? (
+                              <Users className="h-3 w-3 text-ink-400" />
+                            ) : (
+                              <User className="h-3 w-3 text-ink-400" />
+                            )}
                             Custodian:
                           </span>
                           <span
                             className={`font-semibold line-clamp-1 max-w-[170px] ${
                               isItemMissing
-                                ? "text-rose-700"
-                                : isCheckedOut
-                                ? "text-indigo-700"
-                                : "text-emerald-700"
+                                ? "text-rose-700 font-bold"
+                                : item.assignedToAll
+                                ? "text-emerald-700"
+                                : "text-indigo-700"
                             }`}
                           >
                             {isItemMissing
-                              ? "Lost / Missing"
-                              : isCheckedOut && item.assignedTo
+                              ? "Reported Missing"
+                              : item.assignedToAll
+                              ? "All Members (Shared)"
+                              : item.assignedTo
                               ? (item.assignedTo as any).displayName || (item.assignedTo as any).username
-                              : "In Storage"}
+                              : "All Members (Shared)"}
                           </span>
                         </div>
 
@@ -461,13 +511,17 @@ export function Inventory() {
                     {/* Bottom Action Footer */}
                     <div className="mt-4 flex items-center justify-between border-t border-line/70 pt-2.5">
                       <div className="flex items-center gap-1.5">
-                        {/* Custody action */}
+                        {/* Edit Button */}
                         <button
                           type="button"
-                          onClick={() => setCustodyModalItem(item)}
-                          className="rounded-lg border border-line bg-canvas/80 px-2.5 py-1 text-xs font-semibold text-ink-800 hover:bg-canvas hover:border-ink-400 transition-colors"
+                          onClick={() => {
+                            setEditingItem(item);
+                            setIsAddModalOpen(true);
+                          }}
+                          className="rounded-lg border border-line bg-canvas/80 px-2.5 py-1 text-xs font-semibold text-ink-800 hover:bg-canvas hover:border-ink-400 transition-colors flex items-center gap-1"
                         >
-                          {isCheckedOut ? "Return / Move" : "Check Out"}
+                          <Edit className="h-3 w-3" />
+                          Edit
                         </button>
 
                         {/* Mark Missing toggle */}
@@ -530,7 +584,6 @@ export function Inventory() {
                   <tbody className="divide-y divide-line/60">
                     {items.map((item) => {
                       const isItemMissing = item.status === "MISSING" || item.missingDetails?.isMissing;
-                      const isCheckedOut = item.status === "CHECKED_OUT";
 
                       return (
                         <tr key={item._id} className="hover:bg-canvas/50 transition-colors">
@@ -565,16 +618,18 @@ export function Inventory() {
                               className={`font-semibold ${
                                 isItemMissing
                                   ? "text-rose-700 font-bold"
-                                  : isCheckedOut
-                                  ? "text-indigo-700"
-                                  : "text-emerald-700"
+                                  : item.assignedToAll
+                                  ? "text-emerald-700"
+                                  : "text-indigo-700"
                               }`}
                             >
                               {isItemMissing
                                 ? "Reported Missing"
-                                : isCheckedOut && item.assignedTo
+                                : item.assignedToAll
+                                ? "All Members (Shared)"
+                                : item.assignedTo
                                 ? (item.assignedTo as any).displayName || (item.assignedTo as any).username
-                                : "In Storage"}
+                                : "All Members (Shared)"}
                             </span>
                           </td>
                           <td className="px-4 py-3 font-semibold text-ink-900">
@@ -584,10 +639,14 @@ export function Inventory() {
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => setCustodyModalItem(item)}
-                                className="rounded border border-line px-2 py-0.5 font-semibold text-ink-700 hover:bg-canvas"
+                                onClick={() => {
+                                  setEditingItem(item);
+                                  setIsAddModalOpen(true);
+                                }}
+                                className="rounded border border-line px-2 py-0.5 font-semibold text-ink-700 hover:bg-canvas flex items-center gap-1"
                               >
-                                {isCheckedOut ? "Return" : "Check Out"}
+                                <Edit className="h-3 w-3" />
+                                Edit
                               </button>
                               <button
                                 type="button"
@@ -661,7 +720,11 @@ export function Inventory() {
       {/* Modals */}
       <AddComponentModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        initialItem={editingItem}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingItem(null);
+        }}
         onSuccess={() => {
           fetchItems();
           fetchStats();
@@ -672,16 +735,6 @@ export function Inventory() {
         isOpen={isAddToBuyModalOpen}
         onClose={() => setIsAddToBuyModalOpen(false)}
         onSuccess={() => {
-          fetchStats();
-        }}
-      />
-
-      <CustodyModal
-        isOpen={!!custodyModalItem}
-        item={custodyModalItem}
-        onClose={() => setCustodyModalItem(null)}
-        onSuccess={() => {
-          fetchItems();
           fetchStats();
         }}
       />
@@ -700,7 +753,10 @@ export function Inventory() {
         isOpen={!!detailsModalItemId}
         itemId={detailsModalItemId}
         onClose={() => setDetailsModalItemId(null)}
-        onOpenCustody={(item) => setCustodyModalItem(item)}
+        onOpenEdit={(item) => {
+          setEditingItem(item);
+          setIsAddModalOpen(true);
+        }}
         onOpenMissing={(item) => setMissingModalItem(item)}
       />
     </div>

@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
-import { createInventoryItem } from "../../api/inventory";
+import {
+  createInventoryItem,
+  updateInventoryItem,
+  getTeamMembers,
+  type TeamMember,
+} from "../../api/inventory";
 import { listSubsystems } from "../../api/subsystems";
-import type { Subsystem } from "../../types";
+import type { Subsystem, InventoryItem } from "../../types";
 import { useToast } from "../ui/Toast";
-import { X, Plus, Package, Layers, Hash, MapPin, AlignLeft } from "lucide-react";
+import { X, Plus, Save, Package, Layers, Hash, MapPin, AlignLeft, Users, User } from "lucide-react";
 
 interface Props {
   isOpen: boolean;
+  initialItem?: InventoryItem | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -26,9 +32,11 @@ const CATEGORY_PRESETS = [
 
 const UNIT_PRESETS = ["pcs", "sets", "meters", "kg", "liters", "boxes"];
 
-export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
+export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: Props) {
   const { push } = useToast();
   const [subsystems, setSubsystems] = useState<Subsystem[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+
   const [name, setName] = useState("");
   const [partNumber, setPartNumber] = useState("");
   const [subsystemId, setSubsystemId] = useState("");
@@ -36,16 +44,48 @@ export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState("pcs");
   const [location, setLocation] = useState("Main Workshop");
+  const [assignedTo, setAssignedTo] = useState("ALL");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      listSubsystems()
-        .then(setSubsystems)
-        .catch(() => push("Failed to load subsystems", "error"));
+      Promise.all([listSubsystems(), getTeamMembers()])
+        .then(([subs, mems]) => {
+          setSubsystems(subs);
+          setMembers(mems);
+        })
+        .catch(() => push("Failed to load options", "error"));
     }
   }, [isOpen, push]);
+
+  useEffect(() => {
+    if (initialItem) {
+      setName(initialItem.name || "");
+      setPartNumber(initialItem.partNumber || "");
+      setSubsystemId((initialItem.subsystem as any)?._id || (initialItem.subsystem as any) || "");
+      setCategory(initialItem.category || "Fasteners & Hardware");
+      setQuantity(String(initialItem.quantity || 1));
+      setUnit(initialItem.unit || "pcs");
+      setLocation(initialItem.location || "Main Workshop");
+      setAssignedTo(
+        initialItem.assignedToAll
+          ? "ALL"
+          : (initialItem.assignedTo as any)?._id || "ALL"
+      );
+      setDescription(initialItem.description || "");
+    } else {
+      setName("");
+      setPartNumber("");
+      setSubsystemId("");
+      setCategory("Fasteners & Hardware");
+      setQuantity("1");
+      setUnit("pcs");
+      setLocation("Main Workshop");
+      setAssignedTo("ALL");
+      setDescription("");
+    }
+  }, [initialItem, isOpen]);
 
   if (!isOpen) return null;
 
@@ -57,28 +97,43 @@ export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
     }
 
     setIsSubmitting(true);
-    try {
-      await createInventoryItem({
-        name: name.trim(),
-        partNumber: partNumber.trim(),
-        subsystem: (subsystemId || undefined) as any,
-        category: category.trim(),
-        quantity: Math.max(0, parseInt(quantity, 10) || 1),
-        unit: unit.trim(),
-        location: location.trim() || "Main Workshop",
-        description: description.trim(),
-      });
+    const isAll = assignedTo === "ALL";
 
-      push(`"${name}" registered in inventory successfully!`, "success");
+    try {
+      if (initialItem) {
+        await updateInventoryItem(initialItem._id, {
+          name: name.trim(),
+          partNumber: partNumber.trim(),
+          subsystem: (subsystemId || undefined) as any,
+          category: category.trim(),
+          quantity: Math.max(0, parseInt(quantity, 10) || 1),
+          unit: unit.trim(),
+          location: location.trim() || "Main Workshop",
+          assignedToAll: isAll,
+          assignedTo: isAll ? undefined : (assignedTo as any),
+          description: description.trim(),
+        });
+        push(`"${name}" updated successfully!`, "success");
+      } else {
+        await createInventoryItem({
+          name: name.trim(),
+          partNumber: partNumber.trim(),
+          subsystem: (subsystemId || undefined) as any,
+          category: category.trim(),
+          quantity: Math.max(0, parseInt(quantity, 10) || 1),
+          unit: unit.trim(),
+          location: location.trim() || "Main Workshop",
+          assignedToAll: isAll,
+          assignedTo: isAll ? undefined : (assignedTo as any),
+          description: description.trim(),
+        });
+        push(`"${name}" registered in inventory successfully!`, "success");
+      }
+
       onSuccess();
       onClose();
-      // Reset form
-      setName("");
-      setPartNumber("");
-      setDescription("");
-      setQuantity("1");
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || "Failed to add component";
+      const msg = err.response?.data?.error?.message || "Failed to save component";
       push(msg, "error");
     } finally {
       setIsSubmitting(false);
@@ -95,8 +150,14 @@ export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
               <Package className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-ink-900">Add New Component</h2>
-              <p className="text-xs text-ink-500">Register workshop hardware into the tracking system</p>
+              <h2 className="text-base font-bold text-ink-900">
+                {initialItem ? "Edit Component" : "Add New Component"}
+              </h2>
+              <p className="text-xs text-ink-500">
+                {initialItem
+                  ? "Update component details and custody assignment"
+                  : "Register workshop hardware into the tracking system"}
+              </p>
             </div>
           </div>
           <button
@@ -122,6 +183,37 @@ export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+          </div>
+
+          {/* Assigned To (Particular Person or All) */}
+          <div>
+            <label className="field-label flex items-center gap-1">
+              {assignedTo === "ALL" ? (
+                <Users className="h-3.5 w-3.5 text-accent" />
+              ) : (
+                <User className="h-3.5 w-3.5 text-indigo-600" />
+              )}
+              Assign Custody / Possession
+            </label>
+            <select
+              className="field-input font-medium"
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+            >
+              <option value="ALL">👥 All Team Members (Shared / Workshop)</option>
+              <optgroup label="Assign to Individual Member">
+                {members.map((m) => (
+                  <option key={m._id} value={m._id}>
+                    👤 {m.displayName} ({m.username})
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+            <p className="mt-1 text-[11px] text-ink-400">
+              {assignedTo === "ALL"
+                ? "This component is shared and accessible by all team members in the workshop."
+                : "Assigned directly to this member for custody and tracking."}
+            </p>
           </div>
 
           {/* Part Number & Subsystem */}
@@ -180,7 +272,7 @@ export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
             <div>
               <label className="field-label flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
-                Storage Location *
+                Where It Is (Location) *
               </label>
               <input
                 type="text"
@@ -252,8 +344,17 @@ export function AddComponentModal({ isOpen, onClose, onSuccess }: Props) {
               disabled={isSubmitting}
               className="btn-primary"
             >
-              <Plus className="h-4 w-4" />
-              {isSubmitting ? "Adding..." : "Add Component"}
+              {initialItem ? (
+                <>
+                  <Save className="h-4 w-4" />
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  {isSubmitting ? "Adding..." : "Add Component"}
+                </>
+              )}
             </button>
           </div>
         </form>

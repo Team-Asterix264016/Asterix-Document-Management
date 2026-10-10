@@ -17,7 +17,7 @@ describe("Inventory Management API", () => {
     expect(res.status).toBe(401);
   });
 
-  it("creates a new inventory component", async () => {
+  it("creates a new inventory component assigned to all by default", async () => {
     const { password } = await createUser({ username: "inv_user1", password: "password123" });
     const token = await loginAs("inv_user1", password);
     const sub = await createSubsystem("Brakes & Chassis");
@@ -38,56 +38,46 @@ describe("Inventory Management API", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.item.name).toBe("Wilwood Master Cylinder");
-    expect(res.body.item.status).toBe("AVAILABLE");
+    expect(res.body.item.assignedToAll).toBe(true);
+    expect(res.body.item.assignedTo).toBeNull();
     expect(res.body.item.history).toHaveLength(1);
     expect(res.body.item.history[0].action).toBe("CREATED");
   });
 
-  it("checks out and checks in a component with custody audit log", async () => {
+  it("creates a component assigned to a specific individual and updates assignment", async () => {
     const { password: p1 } = await createUser({ username: "custodian_lead", password: "password123" });
     const { user: member2 } = await createUser({ username: "driver_member", password: "password123" });
     const token = await loginAs("custodian_lead", p1);
 
-    // Create item
+    // Create item assigned to member2 directly
     const created = await request(app)
       .post("/api/inventory")
       .set("Authorization", `Bearer ${token}`)
       .send({
         name: "AIM Solo 2 GPS Lap Timer",
         location: "Electronics Cabinet 1",
+        assignedTo: member2.id,
       });
+
+    expect(created.status).toBe(201);
+    expect(created.body.item.assignedToAll).toBe(false);
+    expect(created.body.item.assignedTo._id).toBe(member2.id);
 
     const itemId = created.body.item._id;
 
-    // Check out to member2
-    const checkoutRes = await request(app)
-      .patch(`/api/inventory/${itemId}/custody`)
+    // Update assignment to ALL (shared)
+    const updateRes = await request(app)
+      .put(`/api/inventory/${itemId}`)
       .set("Authorization", `Bearer ${token}`)
       .send({
-        action: "CHECKOUT",
-        assignedTo: member2.id,
-        location: "Trackside Dyno Table",
-        notes: "Checkout for testing day",
+        assignedTo: "ALL",
+        location: "Workshop Bay 1",
       });
 
-    expect(checkoutRes.status).toBe(200);
-    expect(checkoutRes.body.item.status).toBe("CHECKED_OUT");
-    expect(checkoutRes.body.item.location).toBe("Trackside Dyno Table");
-
-    // Check in back to storage
-    const checkinRes = await request(app)
-      .patch(`/api/inventory/${itemId}/custody`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        action: "CHECKIN",
-        location: "Electronics Cabinet 1",
-        notes: "Returned clean and undamaged",
-      });
-
-    expect(checkinRes.status).toBe(200);
-    expect(checkinRes.body.item.status).toBe("AVAILABLE");
-    expect(checkinRes.body.item.assignedTo).toBeNull();
-    expect(checkinRes.body.item.history.length).toBeGreaterThanOrEqual(3);
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.item.assignedToAll).toBe(true);
+    expect(updateRes.body.item.assignedTo).toBeNull();
+    expect(updateRes.body.item.location).toBe("Workshop Bay 1");
   });
 
   it("flags a component as missing and restores it when found", async () => {
@@ -185,8 +175,8 @@ describe("Inventory Management API", () => {
 
     expect(statsRes.status).toBe(200);
     expect(statsRes.body.stats).toHaveProperty("total");
-    expect(statsRes.body.stats).toHaveProperty("available");
-    expect(statsRes.body.stats).toHaveProperty("checkedOut");
+    expect(statsRes.body.stats).toHaveProperty("assignedAll");
+    expect(statsRes.body.stats).toHaveProperty("assignedIndividual");
     expect(statsRes.body.stats).toHaveProperty("missing");
     expect(statsRes.body.stats).toHaveProperty("toBuyPending");
   });

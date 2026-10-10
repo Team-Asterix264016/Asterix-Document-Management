@@ -6,20 +6,21 @@ import { format } from "date-fns";
 import {
   X,
   MapPin,
-  UserCheck,
-  Calendar,
+  Users,
+  User,
   Layers,
   History,
   AlertOctagon,
   ArrowRight,
   Package,
+  Edit,
 } from "lucide-react";
 
 interface Props {
   isOpen: boolean;
   itemId: string | null;
   onClose: () => void;
-  onOpenCustody: (item: InventoryItem) => void;
+  onOpenEdit: (item: InventoryItem) => void;
   onOpenMissing: (item: InventoryItem) => void;
 }
 
@@ -27,7 +28,7 @@ export function ItemDetailsModal({
   isOpen,
   itemId,
   onClose,
-  onOpenCustody,
+  onOpenEdit,
   onOpenMissing,
 }: Props) {
   const [item, setItem] = useState<InventoryItem | null>(null);
@@ -132,7 +133,7 @@ export function ItemDetailsModal({
               )}
 
               {/* Quick Info Grid */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-line bg-canvas/60 p-3">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
                     Quantity
@@ -145,7 +146,7 @@ export function ItemDetailsModal({
                 <div className="rounded-lg border border-line bg-canvas/60 p-3">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 flex items-center gap-1">
                     <MapPin className="h-3 w-3" />
-                    Location
+                    Where It Is
                   </span>
                   <p className="mt-1 text-sm font-semibold text-ink-900 line-clamp-1">
                     {item.location}
@@ -154,25 +155,15 @@ export function ItemDetailsModal({
 
                 <div className="rounded-lg border border-line bg-canvas/60 p-3">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 flex items-center gap-1">
-                    <UserCheck className="h-3 w-3" />
-                    Current Holder
+                    {item.assignedToAll ? <Users className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                    Assigned Custody
                   </span>
-                  <p className="mt-1 text-sm font-semibold text-indigo-700 line-clamp-1">
-                    {item.assignedTo
+                  <p className="mt-1 text-sm font-semibold line-clamp-1 text-indigo-700">
+                    {item.assignedToAll
+                      ? "All Members (Shared)"
+                      : item.assignedTo
                       ? (item.assignedTo as any).displayName || (item.assignedTo as any).username
-                      : "In Storage"}
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-line bg-canvas/60 p-3">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    Expected Return
-                  </span>
-                  <p className="mt-1 text-sm font-semibold text-ink-700">
-                    {item.expectedReturnDate
-                      ? format(new Date(item.expectedReturnDate), "MMM d, yyyy")
-                      : "—"}
+                      : "All Members (Shared)"}
                   </p>
                 </div>
               </div>
@@ -185,12 +176,12 @@ export function ItemDetailsModal({
                 </div>
               )}
 
-              {/* Timeline / Custody History */}
+              {/* Activity History */}
               <div>
                 <div className="flex items-center justify-between mb-3 border-b border-line pb-2">
                   <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-ink-500" />
-                    <h3 className="text-sm font-bold text-ink-900">Custody & Activity History</h3>
+                    <h3 className="text-sm font-bold text-ink-900">Activity & Assignment History</h3>
                   </div>
                   <span className="text-xs text-ink-400">
                     {item.history?.length || 0} event{item.history?.length === 1 ? "" : "s"}
@@ -260,19 +251,17 @@ export function ItemDetailsModal({
               {isMissing ? "Mark Recovered" : "Report Missing"}
             </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenCustody(item);
-                }}
-                className="btn-primary text-xs"
-              >
-                <UserCheck className="h-3.5 w-3.5" />
-                {item.status === "CHECKED_OUT" ? "Check In / Transfer" : "Check Out"}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenEdit(item);
+              }}
+              className="btn-primary text-xs"
+            >
+              <Edit className="h-3.5 w-3.5" />
+              Edit Component
+            </button>
           </div>
         )}
       </div>
