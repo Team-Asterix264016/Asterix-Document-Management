@@ -1,3 +1,4 @@
+import type { Role } from "../types";
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
@@ -61,7 +62,7 @@ export const usersApi = {
     const res = await api.get("/users");
     return res.data;
   },
-  create: async (userData: any) => {
+  create: async (userData: { username: string; password: string; displayName: string; role: Role }) => {
     const res = await api.post("/users", userData);
     return res.data;
   },

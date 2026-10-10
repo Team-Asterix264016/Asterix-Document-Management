@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { AlertTriangle, ArrowRight, ReceiptText, Heart } from "lucide-react";
+import { AlertTriangle, ArrowRight, Heart } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../api/client";
 
@@ -9,6 +9,10 @@ export function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.title = "Sign in · Asterix Bill Manager";
+  }, []);
 
   if (token) return <Navigate to="/" replace />;
 
