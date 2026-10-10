@@ -2,6 +2,11 @@ import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
+// A production bundle pointing at localhost is a broken deploy, not a default.
+if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+  console.error("VITE_API_URL is not set. The production build cannot reach the API.");
+}
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
 });

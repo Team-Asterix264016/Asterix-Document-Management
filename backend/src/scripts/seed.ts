@@ -39,10 +39,10 @@ async function seed() {
   }
 
   console.log("Seed complete:");
-  console.log(`  Treasurer login -> ${env.seed.treasurerUsername} / ${env.seed.treasurerPassword}`);
-  console.log(`  Member login    -> ${env.seed.memberUsername} / ${env.seed.memberPassword}`);
+  console.log(`  Treasurer username -> ${env.seed.treasurerUsername}`);
+  console.log(`  Member username    -> ${env.seed.memberUsername}`);
   console.log(`  Seeded ${DEFAULT_SUBSYSTEMS.length} default subsystems.`);
-  console.log("\nChange these passwords before production use.");
+  console.log("\nPasswords come from SEED_*_PASSWORD env vars. Set and rotate them before production use.");
 
   await disconnectDB();
 }

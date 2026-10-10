@@ -63,7 +63,10 @@ The app auto-creates its child hierarchy (`Bill Evidence/Pending`, `.../Approved
 
 1. Go to [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) → **Create API key** (you can attach it to the same Cloud project).
 2. Copy the key → **`GEMINI_API_KEY`**.
-3. Model is configurable via **`GEMINI_MODEL`** (default `gemini-2.5-flash` — fast and cost-effective for OCR). Never expose this key to the frontend; it lives only in Render env vars.
+3. Two model variables control which Gemini models are used:
+   - **`GEMINI_MODEL`** (default `gemini-2.5-flash`) — used for the Analytics AI Query (fast, cost-effective).
+   - **`GEMINI_OCR_MODEL`** (default `gemini-2.5-pro`) — used exclusively for bill OCR extraction (higher accuracy on receipts). Falls back to `GEMINI_MODEL` if unset.
+   Never expose these keys to the frontend; they live only in Render env vars.
 
 ---
 
@@ -141,6 +144,7 @@ Walk the acceptance checklist end-to-end:
 | `Missing required environment variable` on boot | A required env var is unset in Render. |
 | Login works but every API call is CORS-blocked | `FRONTEND_URL` on Render doesn't exactly match the Vercel origin. |
 | Bills stay `PROCESSING` / AI never fills in | `GEMINI_API_KEY` invalid or quota exhausted — the bill still falls back to manual entry. |
-| Evidence never appears in Drive (`drive.status = FAILED`) | Service account not shared on the folder, wrong `GOOGLE_DRIVE_ROOT_FOLDER_ID`, or Shared Drive ID missing. |
-| `The user's Drive storage quota has been exceeded` | Service accounts have no personal storage — use a **Shared Drive** and set `GOOGLE_DRIVE_SHARED_DRIVE_ID`. |
+| Evidence never appears in Drive (`drive.status = FAILED`) | OAuth2 credentials invalid or refresh token expired — re-run the token script. Check `GOOGLE_DRIVE_ROOT_FOLDER_ID`. |
+| `The user's Drive storage quota has been exceeded` | OAuth2 refresh token expired or quota reached — re-authorize via the token script. |
 | DB connection timeout | Atlas Network Access doesn't allow Render's IP — add `0.0.0.0/0`. |
+| OCR returns low-quality extractions | Set `GEMINI_OCR_MODEL=gemini-2.5-pro` for higher accuracy (costs more per call). |

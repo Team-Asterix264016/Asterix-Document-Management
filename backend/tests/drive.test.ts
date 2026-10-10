@@ -5,7 +5,11 @@ const filesCreate = vi.fn();
 
 vi.mock("googleapis", () => ({
   google: {
-    auth: { JWT: vi.fn().mockImplementation(() => ({})) },
+    auth: {
+      OAuth2: vi.fn().mockImplementation(() => ({
+        setCredentials: vi.fn(),
+      })),
+    },
     drive: vi.fn().mockImplementation(() => ({
       files: { list: filesList, create: filesCreate },
     })),
@@ -18,8 +22,9 @@ vi.mock("../src/config/env.js", async () => {
     ...actual,
     env: {
       ...actual.env,
-      googleServiceAccountEmail: "svc@example.com",
-      googleServiceAccountPrivateKey: "fake-key",
+      googleClientId: "fake-client-id",
+      googleClientSecret: "fake-client-secret",
+      googleRefreshToken: "fake-refresh-token",
       googleDriveRootFolderId: "root-folder-id",
     },
   };
