@@ -66,13 +66,10 @@ export function ItemDetailsModal({
               </div>
               <div className="flex items-center gap-3 text-xs text-ink-500 mt-0.5">
                 {item?.partNumber && <span className="font-mono">PN: {item.partNumber}</span>}
-                {item?.subsystem && (
-                  <span className="flex items-center gap-1 font-medium text-ink-700">
-                    <Layers className="h-3 w-3 text-accent" />
-                    {(item.subsystem as any).name || item.subsystem}
-                  </span>
-                )}
-                <span>Category: {item?.category || "General"}</span>
+                <span className="flex items-center gap-1 font-medium text-ink-700">
+                  <Layers className="h-3 w-3 text-accent" />
+                  Category: {item?.category || "General"}
+                </span>
               </div>
             </div>
           </div>

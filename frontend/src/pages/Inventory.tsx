@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import type { InventoryItem, InventoryStats, Subsystem } from "../types";
+import type { InventoryItem, InventoryStats } from "../types";
 import { listInventory, getInventoryStats, deleteInventoryItem } from "../api/inventory";
-import { listSubsystems } from "../api/subsystems";
 import { InventoryStatsCards } from "../components/inventory/InventoryStatsCards";
 import { InventoryStatusBadge } from "../components/inventory/InventoryStatusBadge";
 import { MissingModal } from "../components/inventory/MissingModal";
@@ -30,6 +29,19 @@ import {
   Edit,
 } from "lucide-react";
 
+const CATEGORY_PRESETS = [
+  "Fasteners & Hardware",
+  "Sensors & DAQ",
+  "Electronics & Wiring",
+  "Tools & Instruments",
+  "Powertrain & Drivetrain",
+  "Suspension & Steering",
+  "Brakes & Hydraulics",
+  "Chassis & Safety",
+  "Raw Materials",
+  "Other",
+];
+
 type ActiveTab = "ALL" | "MISSING" | "TO_BUY";
 
 export function Inventory() {
@@ -37,14 +49,12 @@ export function Inventory() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("ALL");
   const [stats, setStats] = useState<InventoryStats | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
-  const [subsystems, setSubsystems] = useState<Subsystem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [assignedFilter, setAssignedFilter] = useState("");
-  const [subsystemFilter, setSubsystemFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
@@ -69,15 +79,6 @@ export function Inventory() {
     }
   }, []);
 
-  const fetchSubsystems = useCallback(async () => {
-    try {
-      const subs = await listSubsystems();
-      setSubsystems(subs);
-    } catch {
-      // silently ignore
-    }
-  }, []);
-
   const fetchItems = useCallback(async () => {
     if (activeTab === "TO_BUY") return;
     setLoading(true);
@@ -89,7 +90,6 @@ export function Inventory() {
         status: isMissingTab ? "MISSING" : statusFilter === "ALL" ? undefined : statusFilter,
         assignedTo: assignedFilter || undefined,
         isMissing: isMissingTab ? true : undefined,
-        subsystem: subsystemFilter || undefined,
         category: categoryFilter || undefined,
         page,
         limit: 24,
@@ -103,12 +103,11 @@ export function Inventory() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, statusFilter, assignedFilter, subsystemFilter, categoryFilter, page, push]);
+  }, [activeTab, searchQuery, statusFilter, assignedFilter, categoryFilter, page, push]);
 
   useEffect(() => {
     fetchStats();
-    fetchSubsystems();
-  }, [fetchStats, fetchSubsystems]);
+  }, [fetchStats]);
 
   useEffect(() => {
     fetchItems();
@@ -329,19 +328,19 @@ export function Inventory() {
                 </select>
               )}
 
-              {/* Subsystem Filter */}
+              {/* Category Filter */}
               <select
-                className="field-input py-1.5 text-xs w-auto sm:max-w-[160px]"
-                value={subsystemFilter}
+                className="field-input py-1.5 text-xs w-auto sm:max-w-[170px]"
+                value={categoryFilter}
                 onChange={(e) => {
-                  setSubsystemFilter(e.target.value);
+                  setCategoryFilter(e.target.value);
                   setPage(1);
                 }}
               >
-                <option value="">All Subsystems</option>
-                {subsystems.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
+                <option value="">All Categories</option>
+                {CATEGORY_PRESETS.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
                   </option>
                 ))}
               </select>
@@ -428,10 +427,10 @@ export function Inventory() {
                       {/* Top Badges */}
                       <div className="flex items-center justify-between gap-2">
                         <InventoryStatusBadge status={item.status} size="sm" />
-                        {item.subsystem && (
+                        {item.category && (
                           <span className="flex items-center gap-1 rounded-md bg-canvas px-2 py-0.5 text-[11px] font-medium text-ink-700">
                             <Layers className="h-3 w-3 text-accent" />
-                            {(item.subsystem as any).name || item.subsystem}
+                            {item.category}
                           </span>
                         )}
                       </div>
@@ -573,7 +572,7 @@ export function Inventory() {
                   <thead className="border-b border-line bg-canvas/80 font-bold uppercase tracking-wider text-ink-500">
                     <tr>
                       <th className="px-4 py-3">Component</th>
-                      <th className="px-4 py-3">Subsystem</th>
+                      <th className="px-4 py-3">Category</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Where It Is</th>
                       <th className="px-4 py-3">Who Has It</th>
@@ -596,13 +595,9 @@ export function Inventory() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            {item.subsystem ? (
-                              <span className="font-medium text-ink-700">
-                                {(item.subsystem as any).name || item.subsystem}
-                              </span>
-                            ) : (
-                              <span className="text-ink-400">—</span>
-                            )}
+                            <span className="font-medium text-ink-700">
+                              {item.category || "General"}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             <InventoryStatusBadge status={item.status} size="sm" />

@@ -2,7 +2,7 @@ import "./setup.js";
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { createUser, createSubsystem } from "./helpers.js";
+import { createUser } from "./helpers.js";
 
 const app = createApp();
 
@@ -20,7 +20,6 @@ describe("Inventory Management API", () => {
   it("creates a new inventory component assigned to all by default", async () => {
     const { password } = await createUser({ username: "inv_user1", password: "password123" });
     const token = await loginAs("inv_user1", password);
-    const sub = await createSubsystem("Brakes & Chassis");
 
     const res = await request(app)
       .post("/api/inventory")
@@ -28,7 +27,6 @@ describe("Inventory Management API", () => {
       .send({
         name: "Wilwood Master Cylinder",
         partNumber: "260-6764",
-        subsystem: sub.id,
         category: "Brakes & Hydraulics",
         quantity: 2,
         unit: "pcs",
@@ -38,6 +36,7 @@ describe("Inventory Management API", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.item.name).toBe("Wilwood Master Cylinder");
+    expect(res.body.item.category).toBe("Brakes & Hydraulics");
     expect(res.body.item.assignedToAll).toBe(true);
     expect(res.body.item.assignedTo).toBeNull();
     expect(res.body.item.history).toHaveLength(1);
