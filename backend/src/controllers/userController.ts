@@ -54,3 +54,68 @@ export const createUser = async (req: Request, res: Response) => {
   res.status(201).json({ data: safeUser });
 };
 
+export const updateUser = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { displayName, username, role, active } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) {
+    return res.status(404).json({ error: { message: "User not found" } });
+  }
+
+  // Prevent an admin from demoting or deactivating their own logged-in account
+  if (req.user?.sub === id) {
+    if (role && role !== "ADMIN") {
+      return res.status(400).json({ error: { message: "You cannot demote your own admin account" } });
+    }
+    if (active === false) {
+      return res.status(400).json({ error: { message: "You cannot deactivate your own account" } });
+    }
+  }
+
+  if (username && username.trim().toLowerCase() !== user.username) {
+    const normalized = username.trim().toLowerCase();
+    const existing = await User.findOne({ username: normalized, _id: { $ne: id } });
+    if (existing) {
+      return res.status(400).json({ error: { message: "Username already exists" } });
+    }
+    user.username = normalized;
+  }
+
+  if (displayName && displayName.trim()) {
+    user.displayName = displayName.trim();
+  }
+
+  if (role) {
+    user.role = role;
+  }
+
+  if (active !== undefined) {
+    user.active = Boolean(active);
+  }
+
+  await user.save();
+
+  const userObj = user.toObject();
+  const { passwordHash: _, ...safeUser } = userObj;
+
+  res.json({ data: safeUser, message: "User updated successfully" });
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (req.user?.sub === id) {
+    return res.status(400).json({ error: { message: "You cannot delete your own account" } });
+  }
+
+  const user = await User.findById(id);
+  if (!user) {
+    return res.status(404).json({ error: { message: "User not found" } });
+  }
+
+  await User.findByIdAndDelete(id);
+
+  res.json({ message: "User deleted successfully" });
+};
+
