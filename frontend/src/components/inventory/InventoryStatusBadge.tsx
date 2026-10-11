@@ -5,13 +5,15 @@ import { CheckCircle2, UserCheck, Wrench, AlertTriangle, AlertOctagon } from "lu
 interface Props {
   status: InventoryStatus;
   size?: "sm" | "md";
+  showAvailable?: boolean;
 }
 
-export function InventoryStatusBadge({ status, size = "md" }: Props) {
+export function InventoryStatusBadge({ status, size = "md", showAvailable = false }: Props) {
   const isSm = size === "sm";
 
   switch (status) {
     case "AVAILABLE":
+      if (!showAvailable) return null;
       return (
         <span
           className={clsx(
@@ -20,10 +22,6 @@ export function InventoryStatusBadge({ status, size = "md" }: Props) {
             isSm ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs"
           )}
         >
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
-          </span>
           <CheckCircle2 className={isSm ? "h-3 w-3" : "h-3.5 w-3.5"} />
           Available
         </span>
