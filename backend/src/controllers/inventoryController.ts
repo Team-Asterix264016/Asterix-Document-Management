@@ -14,11 +14,21 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
     isMissing,
     page = "1",
     limit = "25",
+    sort = "updated_desc",
   } = req.query;
 
   const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 25));
   const skip = (pageNum - 1) * limitNum;
+
+  let sortOption: Record<string, 1 | -1> = { updatedAt: -1 };
+  if (sort === "name_asc") sortOption = { name: 1 };
+  else if (sort === "name_desc") sortOption = { name: -1 };
+  else if (sort === "stock_asc") sortOption = { quantity: 1 };
+  else if (sort === "stock_desc") sortOption = { quantity: -1 };
+  else if (sort === "location_asc") sortOption = { location: 1 };
+  else if (sort === "updated_asc") sortOption = { updatedAt: 1 };
+  else if (sort === "updated_desc") sortOption = { updatedAt: -1 };
 
   const filter: Record<string, unknown> = {};
 
@@ -62,7 +72,7 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
       .populate("assignedTo", "displayName username")
       .populate("missingDetails.reportedBy", "displayName username")
       .populate("missingDetails.lastKnownHolder", "displayName username")
-      .sort({ updatedAt: -1 })
+      .sort(sortOption)
       .skip(skip)
       .limit(limitNum)
       .lean(),

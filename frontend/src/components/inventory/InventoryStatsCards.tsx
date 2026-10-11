@@ -75,7 +75,7 @@ export function InventoryStatsCards({ stats, activeFilter, onSelectFilter }: Pro
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="flex gap-2.5 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
       {cards.map((card) => {
         const Icon = card.icon;
         const isSelected = activeFilter === card.id;
@@ -86,7 +86,7 @@ export function InventoryStatsCards({ stats, activeFilter, onSelectFilter }: Pro
             type="button"
             onClick={() => onSelectFilter(card.id)}
             className={clsx(
-              "group relative flex flex-col justify-between rounded-lg border p-3.5 text-left transition-all duration-200",
+              "group relative flex min-w-[135px] flex-shrink-0 flex-col justify-between rounded-lg border p-3 text-left transition-all duration-200 sm:min-w-0 sm:flex-shrink",
               isSelected
                 ? "border-accent bg-accent/5 shadow-subtle ring-1 ring-accent"
                 : card.isAlert
