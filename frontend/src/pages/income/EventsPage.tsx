@@ -136,14 +136,19 @@ export function EventsPage() {
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-ink-900">{event.title}</h3>
                     <span
-                      className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                        event.status === "COMPLETED"
+                      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] font-bold ${
+                        event.status === "ONGOING"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : event.status === "COMPLETED"
                           ? "bg-emerald-50 text-status-approved"
                           : event.status === "UPCOMING"
                           ? "bg-blue-50 text-blue-700"
                           : "bg-ink-100 text-ink-500"
                       }`}
                     >
+                      {event.status === "ONGOING" && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      )}
                       {event.status}
                     </span>
                   </div>
@@ -151,12 +156,27 @@ export function EventsPage() {
                   <div className="mt-1.5 flex flex-wrap items-center gap-4 text-xs text-ink-500">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" />
-                      {new Date(event.date).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {(() => {
+                        const s = event.startDate || event.date;
+                        const e = event.endDate || s;
+                        const sStr = new Date(s).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        });
+                        const eStr = new Date(e).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        });
+                        return sStr === eStr ? sStr : `${sStr} – ${eStr}`;
+                      })()}
                     </span>
+                    {event.sessionsCount && event.sessionsCount > 1 && (
+                      <span className="rounded bg-canvas px-1.5 py-0.5 font-semibold text-ink-700">
+                        {event.sessionsCount} Sessions
+                      </span>
+                    )}
                     {event.location && (
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3.5 w-3.5" />

@@ -18,10 +18,12 @@ export function EventModal({
   onSuccess,
 }: EventModalProps) {
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [sessionsCount, setSessionsCount] = useState<number>(1);
+  const [isCancelled, setIsCancelled] = useState(false);
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<EventStatus>("COMPLETED");
   const [tiers, setTiers] = useState<EventTier[]>([
     { tierName: "Standard Pass", pricePerParticipant: 500, registeredCount: 0 },
   ]);
@@ -29,14 +31,35 @@ export function EventModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to compute status dynamically based on current date vs start/end dates
+  function computeStatus(s: string, e: string, cancelled: boolean): EventStatus {
+    if (cancelled) return "CANCELLED";
+    if (!s) return "UPCOMING";
+    const todayStr = new Date().toISOString().split("T")[0];
+    const end = e || s;
+    if (todayStr < s) return "UPCOMING";
+    if (todayStr > end) return "COMPLETED";
+    return "ONGOING";
+  }
+
+  const computedStatus = computeStatus(startDate, endDate, isCancelled);
+
   useEffect(() => {
     if (isOpen) {
       if (eventToEdit) {
         setTitle(eventToEdit.title);
-        setDate(eventToEdit.date ? eventToEdit.date.split("T")[0] : "");
+        const s = eventToEdit.startDate
+          ? eventToEdit.startDate.split("T")[0]
+          : eventToEdit.date
+          ? eventToEdit.date.split("T")[0]
+          : "";
+        const e = eventToEdit.endDate ? eventToEdit.endDate.split("T")[0] : s;
+        setStartDate(s);
+        setEndDate(e);
+        setSessionsCount(eventToEdit.sessionsCount || 1);
+        setIsCancelled(eventToEdit.status === "CANCELLED");
         setLocation(eventToEdit.location || "");
         setDescription(eventToEdit.description || "");
-        setStatus(eventToEdit.status || "COMPLETED");
         setTiers(
           eventToEdit.tiers && eventToEdit.tiers.length > 0
             ? eventToEdit.tiers.map((t) => ({ ...t }))
@@ -44,11 +67,14 @@ export function EventModal({
         );
         setNotes(eventToEdit.notes || "");
       } else {
+        const today = new Date().toISOString().split("T")[0];
         setTitle("");
-        setDate(new Date().toISOString().split("T")[0]);
+        setStartDate(today);
+        setEndDate(today);
+        setSessionsCount(1);
+        setIsCancelled(false);
         setLocation("");
         setDescription("");
-        setStatus("COMPLETED");
         setTiers([
           { tierName: "Standard Pass", pricePerParticipant: 500, registeredCount: 0 },
         ]);
@@ -123,8 +149,16 @@ export function EventModal({
       setError("Please provide an event title");
       return;
     }
-    if (!date) {
-      setError("Please select the event date");
+    if (!startDate) {
+      setError("Please select the workshop start date");
+      return;
+    }
+    if (!endDate) {
+      setError("Please select the workshop end date");
+      return;
+    }
+    if (new Date(endDate).getTime() < new Date(startDate).getTime()) {
+      setError("End date cannot be earlier than start date");
       return;
     }
     if (tiers.length === 0) {
@@ -137,10 +171,13 @@ export function EventModal({
       setError(null);
       const payload = {
         title: title.trim(),
-        date,
+        startDate,
+        endDate,
+        date: startDate,
+        sessionsCount: Math.max(1, Number(sessionsCount) || 1),
         location: location.trim(),
         description: description.trim(),
-        status,
+        status: computedStatus,
         tiers,
         notes: notes.trim(),
       };
@@ -184,7 +221,7 @@ export function EventModal({
                 {eventToEdit ? "Edit Workshop / Event" : "Register Workshop / Event"}
               </h2>
               <p className="text-xs text-ink-500">
-                Define pricing tiers and calculate income dynamically based on participants
+                Define workshop schedule (multi-day & sessions) with automatic status calculation
               </p>
             </div>
           </div>
@@ -197,33 +234,71 @@ export function EventModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="event-title" className="field-label">
+              Event / Workshop Title *
+            </label>
+            <input
+              id="event-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g., Autonomous Systems & ROS2 Workshop"
+              required
+              className="field-input mt-1"
+            />
+          </div>
+
+          {/* Schedule: Multi-day & Sessions */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label htmlFor="event-title" className="field-label">
-                Event Title *
+              <label htmlFor="event-start-date" className="field-label">
+                Start Date *
               </label>
               <input
-                id="event-title"
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Vehicle Dynamics & Telemetry Workshop"
+                id="event-start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  setStartDate(newStart);
+                  if (!endDate || new Date(endDate).getTime() < new Date(newStart).getTime()) {
+                    setEndDate(newStart);
+                  }
+                }}
                 required
                 className="field-input mt-1"
               />
             </div>
 
             <div>
-              <label htmlFor="event-date" className="field-label">
-                Date *
+              <label htmlFor="event-end-date" className="field-label">
+                End Date *
               </label>
               <input
-                id="event-date"
+                id="event-end-date"
                 type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                value={endDate}
+                min={startDate}
+                onChange={(e) => setEndDate(e.target.value)}
                 required
                 className="field-input mt-1"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="event-sessions" className="field-label">
+                Sessions / Modules Count
+              </label>
+              <input
+                id="event-sessions"
+                type="number"
+                min="1"
+                step="1"
+                value={sessionsCount}
+                onChange={(e) => setSessionsCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="field-input mt-1"
+                placeholder="e.g., 2"
               />
             </div>
           </div>
@@ -238,25 +313,55 @@ export function EventModal({
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g., Mechanical Seminar Hall / Zoom"
+                placeholder="e.g., Offline in Mechanical Seminar Hall / Zoom"
                 className="field-input mt-1"
               />
             </div>
 
+            {/* Auto status badge & Cancel toggle */}
             <div>
-              <label htmlFor="event-status" className="field-label">
-                Event Status
+              <label className="field-label">
+                Event Status (Auto-Calculated)
               </label>
-              <select
-                id="event-status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as EventStatus)}
-                className="field-input mt-1"
-              >
-                <option value="COMPLETED">Completed</option>
-                <option value="UPCOMING">Upcoming</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
+              <div className="mt-1 flex items-center justify-between rounded-md border border-line bg-canvas px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      computedStatus === "ONGOING"
+                        ? "bg-amber-100 text-amber-800"
+                        : computedStatus === "COMPLETED"
+                        ? "bg-emerald-100 text-status-approved"
+                        : computedStatus === "UPCOMING"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-ink-200 text-ink-600"
+                    }`}
+                  >
+                    {computedStatus === "ONGOING" && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    )}
+                    {computedStatus}
+                  </span>
+                  <span className="text-[11px] text-ink-500">
+                    {computedStatus === "ONGOING"
+                      ? "Happening now"
+                      : computedStatus === "UPCOMING"
+                      ? "Scheduled for future"
+                      : computedStatus === "COMPLETED"
+                      ? "Dates concluded"
+                      : "Cancelled"}
+                  </span>
+                </div>
+
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-600 hover:text-ink-900">
+                  <input
+                    type="checkbox"
+                    checked={isCancelled}
+                    onChange={(e) => setIsCancelled(e.target.checked)}
+                    className="rounded border-line text-status-rejected focus:ring-status-rejected"
+                  />
+                  <span>Mark Cancelled</span>
+                </label>
+              </div>
             </div>
           </div>
 

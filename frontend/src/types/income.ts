@@ -8,12 +8,16 @@ export interface TreasuryConfig {
   activeMembersCount?: number;
 }
 
+export type InstallmentPlanType = "SEASON_MILESTONE" | "MONTHLY_CHIT";
+
 export interface InstallmentPlan {
   _id: string;
   title: string;
   amount: number;
   dueDate: string;
   season: string;
+  planType?: InstallmentPlanType;
+  billingMonth?: string;
   description?: string;
   active: boolean;
   createdAt: string;
@@ -23,6 +27,8 @@ export interface MemberInstallmentStatus {
   planId: string;
   planTitle: string;
   planAmount: number;
+  planType?: InstallmentPlanType;
+  billingMonth?: string;
   dueDate: string;
   status: PaymentStatus;
   amountPaid: number;
@@ -39,6 +45,8 @@ export interface MemberMatrixRow {
   username: string;
   role: string;
   totalPaid: number;
+  milestonePaid?: number;
+  monthlyChitPaid?: number;
   target: number;
   remaining: number;
   progressPercent: number;
@@ -55,6 +63,9 @@ export interface InstallmentsMatrixResponse {
     totalCollected: number;
     totalPending: number;
     collectionPercentage: number;
+    monthlyChitTotalCollected?: number;
+    monthlyChitTotalExpected?: number;
+    monthlyChitPlansCount?: number;
   };
   plans: InstallmentPlan[];
   matrix: MemberMatrixRow[];
@@ -67,12 +78,15 @@ export interface EventTier {
   registeredCount: number;
 }
 
-export type EventStatus = "UPCOMING" | "COMPLETED" | "CANCELLED";
+export type EventStatus = "UPCOMING" | "ONGOING" | "COMPLETED" | "CANCELLED";
 
 export interface IncomeEvent {
   _id: string;
   title: string;
   date: string;
+  startDate?: string;
+  endDate?: string;
+  sessionsCount?: number;
   location: string;
   description: string;
   status: EventStatus;
