@@ -139,3 +139,12 @@ export async function getMonthlyReportFolder(monthLabel: string): Promise<string
   const reports = await ensureFolder(DRIVE_STRUCTURE.MONTHLY_REPORTS, root);
   return ensureFolder(monthLabel, reports);
 }
+
+export async function deleteFile(fileId: string): Promise<void> {
+  try {
+    const drive = getDrive();
+    await drive.files.delete({ fileId, supportsAllDrives: true });
+  } catch (err) {
+    console.error(`Failed to delete Drive file ${fileId}:`, (err as Error).message);
+  }
+}

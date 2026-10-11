@@ -19,6 +19,7 @@ router.get("/", validateQuery(billQuerySchema), billController.listBills);
 router.post("/", validateBody(createDraftBillSchema), billController.createDraft);
 router.get("/:id", billController.getBill);
 router.put("/:id", validateBody(updateBillSchema), billController.updateBill);
+router.delete("/:id", billController.deleteBill);
 router.post("/:id/attachments", upload.array("files", 10), billController.uploadAttachments);
 router.post("/:id/submit", validateBody(submitBillSchema), billController.submitBill);
 router.post("/:id/approve", requireRole("TREASURER"), billController.approveBill);

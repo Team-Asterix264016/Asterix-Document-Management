@@ -8,7 +8,8 @@ import { apiErrorMessage } from "../api/client";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Spinner } from "../components/ui/Spinner";
 import { formatDate, formatDateTime, formatINR, nameOf, subsystemName } from "../utils/format";
-import { ArrowLeft, CheckCircle2, ExternalLink, FileText, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, FileText, XCircle, Pencil, Trash2 } from "lucide-react";
+import { EditBillModal } from "../components/bills/EditBillModal";
 
 export function BillDetails() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,8 @@ export function BillDetails() {
   const [busy, setBusy] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: bill, loading, error, reload } = useAsync(() => billsApi.getBill(id!), [id]);
 
@@ -50,6 +53,22 @@ export function BillDetails() {
     }
   }
 
+  async function handleDelete() {
+    if (!id) return;
+    if (!window.confirm("Are you sure you want to delete this bill? This action cannot be undone.")) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await billsApi.deleteBill(id);
+      toast.push("Bill deleted successfully.", "success");
+      navigate("/bills");
+    } catch (err) {
+      toast.push(apiErrorMessage(err), "error");
+      setIsDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -63,6 +82,13 @@ export function BillDetails() {
   }
 
   const canDecide = user?.role === "TREASURER" && bill.status === "PENDING_APPROVAL";
+
+  const uploaderId =
+    typeof bill.uploadedBy === "object" && bill.uploadedBy ? bill.uploadedBy._id : (bill.uploadedBy as string);
+  const isUploader = user?.id === uploaderId;
+  const isPrivileged = user?.role === "ADMIN" || user?.role === "TREASURER";
+  const canEdit = isPrivileged || (isUploader && ["DRAFT", "PROCESSING", "REJECTED"].includes(bill.status));
+  const canDelete = isPrivileged || isUploader;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -78,7 +104,30 @@ export function BillDetails() {
           <h1 className="truncate text-xl font-semibold text-ink-900">{bill.vendor ?? "Untitled bill"}</h1>
           <p className="text-sm text-ink-500">{subsystemName(bill.subsystem)}</p>
         </div>
-        <StatusBadge status={bill.status} />
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
+              title="Edit bill"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="btn-ghost flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-status-rejected hover:bg-status-rejectedSoft"
+              title="Delete bill"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+          )}
+          <StatusBadge status={bill.status} />
+        </div>
       </div>
 
       {bill.duplicateCheck?.possibleDuplicate && (
@@ -217,6 +266,15 @@ export function BillDetails() {
           )}
         </div>
       </div>
+
+      {showEditModal && (
+        <EditBillModal
+          isOpen={showEditModal}
+          bill={bill}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={() => reload()}
+        />
+      )}
     </div>
   );
 }

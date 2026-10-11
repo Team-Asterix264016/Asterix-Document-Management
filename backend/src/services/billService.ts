@@ -10,6 +10,7 @@ import {
   getRejectedFolder,
   moveFile,
   uploadFile,
+  deleteFile,
 } from "./driveService.js";
 import { buildBillFilename, extensionFromMime } from "../utils/filename.js";
 import { findPossibleDuplicates } from "./duplicateService.js";
@@ -222,10 +223,10 @@ async function runAiExtraction(billId: string, files: Array<{ buffer: Buffer; mi
 
 const EDITABLE_STATUSES = ["DRAFT", "PROCESSING", "REJECTED"];
 
-export async function updateBill(billId: string, data: Record<string, unknown>) {
+export async function updateBill(billId: string, data: Record<string, unknown>, isPrivileged = false) {
   const bill = await getBillOrThrow(billId);
-  if (!EDITABLE_STATUSES.includes(bill.status)) {
-    throw ApiError.badRequest("Only draft or rejected bills can be edited");
+  if (!isPrivileged && !EDITABLE_STATUSES.includes(bill.status)) {
+    throw ApiError.badRequest("Only draft or rejected bills can be edited by members");
   }
   bill.userEdited = true;
 
@@ -243,6 +244,7 @@ export async function updateBill(billId: string, data: Record<string, unknown>) 
     items?: unknown[];
     subsystemId?: string | null;
     newSubsystemName?: string | null;
+    status?: BillStatus;
   };
 
   if (patch.vendor !== undefined) {
@@ -260,19 +262,40 @@ export async function updateBill(billId: string, data: Record<string, unknown>) 
   if (patch.totalAmount !== undefined) bill.totalAmount = patch.totalAmount;
   if (patch.items !== undefined) bill.items = patch.items as never;
 
+  if (patch.status && isPrivileged) {
+    bill.status = patch.status;
+  }
+
   if (patch.newSubsystemName) {
     const subsystem = await findOrCreateSubsystem(patch.newSubsystemName);
     bill.subsystem = subsystem._id as never;
     bill.subsystemNameAtSubmission = subsystem.name;
-  } else if (patch.subsystemId) {
-    const subsystem = await Subsystem.findById(patch.subsystemId);
-    if (!subsystem) throw ApiError.badRequest("Selected subsystem does not exist");
-    bill.subsystem = subsystem._id as never;
-    bill.subsystemNameAtSubmission = subsystem.name;
+  } else if (patch.subsystemId !== undefined) {
+    if (patch.subsystemId) {
+      const subsystem = await Subsystem.findById(patch.subsystemId);
+      if (!subsystem) throw ApiError.badRequest("Selected subsystem does not exist");
+      bill.subsystem = subsystem._id as never;
+      bill.subsystemNameAtSubmission = subsystem.name;
+    } else {
+      bill.subsystem = null as never;
+      bill.subsystemNameAtSubmission = null;
+    }
   }
 
   await bill.save();
   return bill;
+}
+
+export async function deleteBill(billId: string) {
+  const bill = await getBillOrThrow(billId);
+  if (bill.attachments && bill.attachments.length > 0) {
+    for (const a of bill.attachments) {
+      if (a.driveFileId) {
+        await deleteFile(a.driveFileId).catch(() => {});
+      }
+    }
+  }
+  await Bill.findByIdAndDelete(billId);
 }
 
 export async function submitBill(billId: string, subsystemId: string) {
