@@ -111,8 +111,8 @@ export function EditTargetModal({
               <input
                 id="target-input"
                 type="number"
-                min="1"
-                step="100"
+                min="0"
+                step="any"
                 value={targetAmount}
                 onChange={(e) => setTargetAmount(e.target.value)}
                 required

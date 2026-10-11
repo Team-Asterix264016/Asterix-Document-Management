@@ -181,8 +181,8 @@ export function RecordPaymentModal({
               <input
                 id="payment-amount"
                 type="number"
-                min="1"
-                step="50"
+                min="0"
+                step="any"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required
