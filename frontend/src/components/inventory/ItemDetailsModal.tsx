@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { InventoryItem } from "../../types";
 import { getInventoryItem } from "../../api/inventory";
 import { InventoryStatusBadge } from "./InventoryStatusBadge";
@@ -35,6 +36,20 @@ export function ItemDetailsModal({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = orig;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
     if (isOpen && itemId) {
       setLoading(true);
       getInventoryItem(itemId)
@@ -50,9 +65,19 @@ export function ItemDetailsModal({
 
   const isMissing = item?.status === "MISSING" || item?.missingDetails?.isMissing;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/60 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border border-line bg-surface shadow-card animate-fade-up">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/50 backdrop-blur-sm animate-fade-in"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border border-line bg-surface shadow-card animate-fade-up"
+      >
         {/* Header */}
         <div className="flex items-start justify-between border-b border-line p-5">
           <div className="flex items-center gap-3">
@@ -262,6 +287,7 @@ export function ItemDetailsModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { InventoryItem, CustodyAction } from "../../types";
 import { updateCustody, getTeamMembers, type TeamMember } from "../../api/inventory";
 import { useToast } from "../ui/Toast";
@@ -20,6 +21,20 @@ export function CustodyModal({ isOpen, item, onClose, onSuccess }: Props) {
   const [expectedReturnDate, setExpectedReturnDate] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = orig;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -82,9 +97,19 @@ export function CustodyModal({ isOpen, item, onClose, onSuccess }: Props) {
 
   const isCheckedOut = item.status === "CHECKED_OUT";
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/60 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-lg rounded-xl border border-line bg-surface p-6 shadow-card animate-fade-up">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/50 backdrop-blur-sm animate-fade-in"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-lg rounded-xl border border-line bg-surface p-6 shadow-card animate-fade-up"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-line pb-4">
           <div>
@@ -273,6 +298,7 @@ export function CustodyModal({ isOpen, item, onClose, onSuccess }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
