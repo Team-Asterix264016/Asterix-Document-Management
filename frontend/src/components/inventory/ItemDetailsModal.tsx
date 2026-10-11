@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Package,
   Edit,
+  Trash2,
 } from "lucide-react";
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
   onClose: () => void;
   onOpenEdit: (item: InventoryItem) => void;
   onOpenMissing: (item: InventoryItem) => void;
+  onDelete?: (id: string, name: string) => void;
 }
 
 export function ItemDetailsModal({
@@ -31,6 +33,7 @@ export function ItemDetailsModal({
   onClose,
   onOpenEdit,
   onOpenMissing,
+  onDelete,
 }: Props) {
   const [item, setItem] = useState<InventoryItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -260,18 +263,35 @@ export function ItemDetailsModal({
 
         {/* Footer Actions */}
         {item && (
-          <div className="flex items-center justify-between border-t border-line bg-canvas/40 p-4">
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenMissing(item);
-              }}
-              className={isMissing ? "btn-secondary text-xs" : "btn-secondary text-rose-700 hover:border-rose-300 text-xs"}
-            >
-              <AlertOctagon className="h-3.5 w-3.5" />
-              {isMissing ? "Mark Recovered" : "Report Missing"}
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-canvas/40 p-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenMissing(item);
+                }}
+                className={isMissing ? "btn-secondary text-xs" : "btn-secondary text-rose-700 hover:border-rose-300 text-xs"}
+              >
+                <AlertOctagon className="h-3.5 w-3.5" />
+                {isMissing ? "Mark Recovered" : "Report Missing"}
+              </button>
+
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onDelete(item._id, item.name);
+                  }}
+                  className="btn-ghost text-xs text-status-rejected hover:bg-status-rejectedSoft"
+                  title="Delete component"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
 
             <button
               type="button"
