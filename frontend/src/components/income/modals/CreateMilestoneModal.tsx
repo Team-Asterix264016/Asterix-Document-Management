@@ -1,36 +1,89 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, CalendarPlus, AlertTriangle } from "lucide-react";
+import { X, CalendarPlus, AlertTriangle, Layers, CalendarRange } from "lucide-react";
 import { createInstallmentPlan } from "../../../api/income";
-import type { InstallmentPlan } from "../../../types/income";
+import type { InstallmentPlan, InstallmentPlanType } from "../../../types/income";
 
 interface CreateMilestoneModalProps {
   isOpen: boolean;
+  initialType?: InstallmentPlanType;
   onClose: () => void;
   onSuccess: (newPlan: InstallmentPlan) => void;
 }
 
 export function CreateMilestoneModal({
   isOpen,
+  initialType = "SEASON_MILESTONE",
   onClose,
   onSuccess,
 }: CreateMilestoneModalProps) {
+  const [planType, setPlanType] = useState<InstallmentPlanType>(initialType);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [billingMonth, setBillingMonth] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to format Month (YYYY-MM to "October 2026")
+  function formatMonthLabel(monthStr: string) {
+    if (!monthStr) return "";
+    const [year, month] = monthStr.split("-").map(Number);
+    const date = new Date(year, month - 1, 1);
+    return date.toLocaleString("en-IN", { month: "long", year: "numeric" });
+  }
+
+  function handleTypeChange(type: InstallmentPlanType) {
+    setPlanType(type);
+    if (type === "MONTHLY_CHIT") {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const currentMonthVal = `${yyyy}-${mm}`;
+      setBillingMonth(currentMonthVal);
+      setAmount("180");
+      const monthLabel = formatMonthLabel(currentMonthVal);
+      setTitle(`${monthLabel} - Monthly Chit Fund`);
+      // Last day of current month as default due date
+      const lastDay = new Date(yyyy, now.getMonth() + 1, 0).toISOString().split("T")[0];
+      setDueDate(lastDay);
+      setDescription("Monthly recurring team chit fund contribution");
+    } else {
+      setAmount("2500");
+      setTitle("");
+      setBillingMonth("");
+      setDescription("");
+      setDueDate("");
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
-      setTitle("");
-      setAmount("");
-      setDueDate("");
-      setDescription("");
+      const selectedType = initialType || "SEASON_MILESTONE";
+      setPlanType(selectedType);
+      if (selectedType === "MONTHLY_CHIT") {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const currentMonthVal = `${yyyy}-${mm}`;
+        setBillingMonth(currentMonthVal);
+        setAmount("180");
+        const monthLabel = formatMonthLabel(currentMonthVal);
+        setTitle(`${monthLabel} - Monthly Chit Fund`);
+        const lastDay = new Date(yyyy, now.getMonth() + 1, 0).toISOString().split("T")[0];
+        setDueDate(lastDay);
+        setDescription("Monthly recurring team chit fund contribution");
+      } else {
+        setTitle("");
+        setAmount("");
+        setDueDate("");
+        setBillingMonth("");
+        setDescription("");
+      }
       setError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialType]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -73,6 +126,8 @@ export function CreateMilestoneModal({
         title: title.trim(),
         amount: numAmount,
         dueDate,
+        planType,
+        billingMonth: planType === "MONTHLY_CHIT" ? formatMonthLabel(billingMonth) : undefined,
         description: description.trim(),
       });
       onSuccess(res.item);
@@ -119,17 +174,83 @@ export function CreateMilestoneModal({
           </button>
         </div>
 
+        {/* Plan Type Selector */}
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-canvas p-1">
+          <button
+            type="button"
+            onClick={() => handleTypeChange("SEASON_MILESTONE")}
+            className={`flex items-center justify-center gap-2 rounded-md py-2 text-xs font-bold transition-all ${
+              planType === "SEASON_MILESTONE"
+                ? "bg-surface text-ink-900 shadow-sm"
+                : "text-ink-500 hover:text-ink-800"
+            }`}
+          >
+            <Layers className="h-4 w-4 text-accent" />
+            Seasonal Milestone (10K Build)
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange("MONTHLY_CHIT")}
+            className={`flex items-center justify-center gap-2 rounded-md py-2 text-xs font-bold transition-all ${
+              planType === "MONTHLY_CHIT"
+                ? "bg-surface text-ink-900 shadow-sm"
+                : "text-ink-500 hover:text-ink-800"
+            }`}
+          >
+            <CalendarRange className="h-4 w-4 text-purple-600" />
+            Monthly Chit Fund (₹180/mo)
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {planType === "MONTHLY_CHIT" ? (
+            <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+              <label htmlFor="billing-month" className="field-label !text-purple-900">
+                Billing Month *
+              </label>
+              <div className="mt-1 flex items-center gap-3">
+                <input
+                  id="billing-month"
+                  type="month"
+                  value={billingMonth}
+                  onChange={(e) => {
+                    const m = e.target.value;
+                    setBillingMonth(m);
+                    const label = formatMonthLabel(m);
+                    setTitle(`${label} - Monthly Chit Fund`);
+                    if (m) {
+                      const [yr, mo] = m.split("-").map(Number);
+                      const lastDay = new Date(yr, mo, 0).toISOString().split("T")[0];
+                      setDueDate(lastDay);
+                    }
+                  }}
+                  required
+                  className="field-input font-medium"
+                />
+                <span className="text-xs font-bold text-purple-800">
+                  {formatMonthLabel(billingMonth)}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[11px] text-purple-700">
+                Monthly chit fund contribution for team pool.
+              </p>
+            </div>
+          ) : null}
+
           <div>
             <label htmlFor="milestone-title" className="field-label">
-              Milestone Title *
+              {planType === "MONTHLY_CHIT" ? "Chit Fund Title *" : "Milestone Title *"}
             </label>
             <input
               id="milestone-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Installment 1 - Chassis Materials"
+              placeholder={
+                planType === "MONTHLY_CHIT"
+                  ? "e.g., October 2026 - Monthly Chit Fund"
+                  : "e.g., Installment 1 - Chassis Materials"
+              }
               required
               className="field-input mt-1"
             />
@@ -137,9 +258,20 @@ export function CreateMilestoneModal({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="milestone-amount" className="field-label">
-                Amount Per Member (₹) *
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="milestone-amount" className="field-label">
+                  Amount Per Member (₹) *
+                </label>
+                {planType === "MONTHLY_CHIT" && (
+                  <button
+                    type="button"
+                    onClick={() => setAmount("180")}
+                    className="text-[10px] font-bold text-purple-700 hover:underline"
+                  >
+                    Set ₹180
+                  </button>
+                )}
+              </div>
               <div className="relative mt-1">
                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm font-semibold text-ink-400">
                   ₹
@@ -151,10 +283,74 @@ export function CreateMilestoneModal({
                   step="any"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="3000"
+                  placeholder={planType === "MONTHLY_CHIT" ? "180" : "3000"}
                   required
                   className="field-input !pl-8 font-semibold text-ink-900"
                 />
+              </div>
+              {/* Presets */}
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {planType === "MONTHLY_CHIT" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("180")}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        amount === "180" ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                      }`}
+                    >
+                      ₹180
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("200")}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        amount === "200" ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                      }`}
+                    >
+                      ₹200
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("250")}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        amount === "250" ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                      }`}
+                    >
+                      ₹250
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("2500")}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        amount === "2500" ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                      }`}
+                    >
+                      ₹2,500
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("3000")}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        amount === "3000" ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                      }`}
+                    >
+                      ₹3,000
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAmount("5000")}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        amount === "5000" ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                      }`}
+                    >
+                      ₹5,000
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

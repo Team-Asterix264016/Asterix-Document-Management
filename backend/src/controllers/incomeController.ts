@@ -4,7 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { TreasuryConfig } from "../models/TreasuryConfig.js";
 import { InstallmentPlan } from "../models/InstallmentPlan.js";
 import { InstallmentPayment } from "../models/InstallmentPayment.js";
-import { IncomeEvent } from "../models/IncomeEvent.js";
+import { IncomeEvent, computeEventStatus } from "../models/IncomeEvent.js";
 import { IncomeSponsor } from "../models/IncomeSponsor.js";
 import { IncomeMisc } from "../models/IncomeMisc.js";
 import { User } from "../models/User.js";
@@ -146,7 +146,7 @@ export const getTreasuryOverview = asyncHandler(async (_req: Request, res: Respo
       type: "EVENT" as const,
       title: e.title,
       amount: e.totalRevenue,
-      date: e.date,
+      date: (e.startDate || e.date || e.createdAt) as Date,
       meta: `${e.totalParticipants} attendees`,
     })),
     ...recentSponsors.map((s) => ({
@@ -217,10 +217,12 @@ export const getInstallmentPlans = asyncHandler(async (_req: Request, res: Respo
 });
 
 export const createInstallmentPlan = asyncHandler(async (req: Request, res: Response) => {
-  const { title, amount, dueDate, description, season } = req.body;
+  const { title, amount, dueDate, description, season, planType, billingMonth } = req.body;
   if (!title?.trim()) throw ApiError.badRequest("Title is required");
   if (typeof amount !== "number" || amount <= 0) throw ApiError.badRequest("Amount must be greater than 0");
   if (!dueDate) throw ApiError.badRequest("Due date is required");
+
+  const effectiveType = planType === "MONTHLY_CHIT" ? "MONTHLY_CHIT" : "SEASON_MILESTONE";
 
   const plan = await InstallmentPlan.create({
     title: title.trim(),
@@ -228,6 +230,8 @@ export const createInstallmentPlan = asyncHandler(async (req: Request, res: Resp
     dueDate: new Date(dueDate),
     description: description?.trim() || "",
     season: season?.trim() || "2026-27",
+    planType: effectiveType,
+    billingMonth: billingMonth?.trim() || "",
     createdBy: req.user?.sub ? new Types.ObjectId(req.user.sub) : undefined,
   });
 
@@ -236,7 +240,7 @@ export const createInstallmentPlan = asyncHandler(async (req: Request, res: Resp
 
 export const updateInstallmentPlan = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { title, amount, dueDate, description, active } = req.body;
+  const { title, amount, dueDate, description, active, planType, billingMonth } = req.body;
 
   const plan = await InstallmentPlan.findById(id);
   if (!plan) throw ApiError.notFound("Installment plan not found");
@@ -249,6 +253,8 @@ export const updateInstallmentPlan = asyncHandler(async (req: Request, res: Resp
   if (dueDate !== undefined) plan.dueDate = new Date(dueDate);
   if (description !== undefined) plan.description = description.trim();
   if (active !== undefined) plan.active = Boolean(active);
+  if (planType !== undefined) plan.planType = planType === "MONTHLY_CHIT" ? "MONTHLY_CHIT" : "SEASON_MILESTONE";
+  if (billingMonth !== undefined) plan.billingMonth = billingMonth.trim();
 
   await plan.save();
   res.json({ item: plan });
@@ -289,16 +295,27 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
 
   const memberMatrix = members.map((member) => {
     let totalPaid = 0;
+    let milestonePaid = 0;
+    let monthlyChitPaid = 0;
+
     const installmentsStatus = plans.map((plan) => {
       const payment = paymentMap.get(`${String(plan._id)}_${String(member._id)}`);
       const isPaid = payment?.status === "PAID";
+      const paidAmt = isPaid ? (payment.amountPaid || 0) : 0;
       if (isPaid) {
-        totalPaid += payment.amountPaid || 0;
+        totalPaid += paidAmt;
+        if (plan.planType === "MONTHLY_CHIT") {
+          monthlyChitPaid += paidAmt;
+        } else {
+          milestonePaid += paidAmt;
+        }
       }
       return {
         planId: String(plan._id),
         planTitle: plan.title,
         planAmount: plan.amount,
+        planType: plan.planType || "SEASON_MILESTONE",
+        billingMonth: plan.billingMonth || "",
         dueDate: plan.dueDate,
         status: isPaid ? "PAID" : "PENDING",
         amountPaid: isPaid ? payment.amountPaid : 0,
@@ -311,8 +328,8 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
     });
 
     const target = config.targetPerMember;
-    const remaining = Math.max(0, target - totalPaid);
-    const progressPercent = target > 0 ? Math.min(100, Math.round((totalPaid / target) * 100)) : 100;
+    const remaining = Math.max(0, target - milestonePaid);
+    const progressPercent = target > 0 ? Math.min(100, Math.round((milestonePaid / target) * 100)) : 100;
 
     return {
       memberId: String(member._id),
@@ -320,6 +337,8 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
       username: member.username,
       role: member.role,
       totalPaid,
+      milestonePaid,
+      monthlyChitPaid,
       target,
       remaining,
       progressPercent,
@@ -328,7 +347,11 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
   });
 
   const totalExpected = config.targetPerMember * members.length;
-  const totalCollected = memberMatrix.reduce((sum, m) => sum + m.totalPaid, 0);
+  const totalCollected = memberMatrix.reduce((sum, m) => sum + m.milestonePaid, 0);
+
+  const monthlyChitPlans = plans.filter((p) => p.planType === "MONTHLY_CHIT");
+  const monthlyChitTotalCollected = memberMatrix.reduce((sum, m) => sum + m.monthlyChitPaid, 0);
+  const monthlyChitTotalExpected = monthlyChitPlans.reduce((sum, p) => sum + p.amount, 0) * members.length;
 
   res.json({
     config: {
@@ -340,6 +363,9 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
       totalCollected,
       totalPending: Math.max(0, totalExpected - totalCollected),
       collectionPercentage: totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0,
+      monthlyChitTotalCollected,
+      monthlyChitTotalExpected,
+      monthlyChitPlansCount: monthlyChitPlans.length,
     },
     plans,
     matrix: memberMatrix,
@@ -392,7 +418,23 @@ export const deleteInstallmentPayment = asyncHandler(async (req: Request, res: R
 // ==========================================
 
 export const getEvents = asyncHandler(async (_req: Request, res: Response) => {
-  const events = await IncomeEvent.find().sort({ date: -1, createdAt: -1 }).lean();
+  const rawEvents = await IncomeEvent.find().sort({ startDate: -1, date: -1, createdAt: -1 }).lean();
+
+  // Dynamically compute real-time status so multi-day workshops transition accurately as days progress
+  const events = rawEvents.map((e) => {
+    const sDate = e.startDate || e.date;
+    const eDate = e.endDate || sDate;
+    const computedStatus = computeEventStatus(sDate, eDate, e.status);
+    return {
+      ...e,
+      startDate: sDate,
+      endDate: eDate,
+      date: sDate,
+      status: computedStatus,
+      sessionsCount: e.sessionsCount || 1,
+    };
+  });
+
   const totalRevenue = events.reduce((sum, e) => sum + (e.totalRevenue || 0), 0);
   const totalParticipants = events.reduce((sum, e) => sum + (e.totalParticipants || 0), 0);
 
@@ -407,9 +449,12 @@ export const getEvents = asyncHandler(async (_req: Request, res: Response) => {
 });
 
 export const createEvent = asyncHandler(async (req: Request, res: Response) => {
-  const { title, date, location, description, status, tiers, notes } = req.body;
+  const { title, startDate, endDate, date, sessionsCount, location, description, status, tiers, notes } = req.body;
   if (!title?.trim()) throw ApiError.badRequest("Event title is required");
-  if (!date) throw ApiError.badRequest("Event date is required");
+
+  const effectiveStart = startDate || date;
+  if (!effectiveStart) throw ApiError.badRequest("Start date is required");
+  const effectiveEnd = endDate || effectiveStart;
 
   const parsedTiers = Array.isArray(tiers)
     ? tiers.map((t: { tierName: string; pricePerParticipant: number; registeredCount: number }) => ({
@@ -419,12 +464,17 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
       }))
     : [];
 
+  const calculatedStatus = computeEventStatus(effectiveStart, effectiveEnd, status);
+
   const event = new IncomeEvent({
     title: title.trim(),
-    date: new Date(date),
+    startDate: new Date(effectiveStart),
+    endDate: new Date(effectiveEnd),
+    date: new Date(effectiveStart),
+    sessionsCount: Math.max(1, Number(sessionsCount) || 1),
     location: location?.trim() || "",
     description: description?.trim() || "",
-    status: status || "COMPLETED",
+    status: calculatedStatus,
     tiers: parsedTiers,
     notes: notes?.trim() || "",
     createdBy: req.user?.sub ? new Types.ObjectId(req.user.sub) : undefined,
@@ -436,17 +486,34 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
 
 export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { title, date, location, description, status, tiers, notes } = req.body;
+  const { title, startDate, endDate, date, sessionsCount, location, description, status, tiers, notes } = req.body;
 
   const event = await IncomeEvent.findById(id);
   if (!event) throw ApiError.notFound("Event not found");
 
   if (title !== undefined) event.title = title.trim();
-  if (date !== undefined) event.date = new Date(date);
+  if (startDate !== undefined) {
+    event.startDate = new Date(startDate);
+    event.date = new Date(startDate);
+  } else if (date !== undefined) {
+    event.startDate = new Date(date);
+    event.date = new Date(date);
+  }
+  if (endDate !== undefined) {
+    event.endDate = new Date(endDate);
+  } else if (event.startDate && !event.endDate) {
+    event.endDate = event.startDate;
+  }
+  if (sessionsCount !== undefined) {
+    event.sessionsCount = Math.max(1, Number(sessionsCount) || 1);
+  }
   if (location !== undefined) event.location = location.trim();
   if (description !== undefined) event.description = description.trim();
-  if (status !== undefined) event.status = status;
   if (notes !== undefined) event.notes = notes.trim();
+
+  const finalStart = event.startDate || event.date;
+  const finalEnd = event.endDate || finalStart;
+  event.status = computeEventStatus(finalStart, finalEnd, status || event.status);
 
   if (Array.isArray(tiers)) {
     event.tiers = tiers.map((t: { tierName: string; pricePerParticipant: number; registeredCount: number }) => ({

@@ -4,6 +4,7 @@ import type {
   TreasuryConfig,
   InstallmentsMatrixResponse,
   InstallmentPlan,
+  InstallmentPlanType,
   IncomeEvent,
   IncomeSponsor,
   IncomeMisc,
@@ -53,6 +54,8 @@ export async function createInstallmentPlan(data: {
   amount: number;
   dueDate: string;
   description?: string;
+  planType?: InstallmentPlanType;
+  billingMonth?: string;
 }): Promise<{ item: InstallmentPlan }> {
   const res = await api.post<{ item: InstallmentPlan }>("/income/installments/plans", data);
   return res.data;
@@ -106,7 +109,10 @@ export async function getIncomeEvents(): Promise<{
 
 export async function createIncomeEvent(data: {
   title: string;
-  date: string;
+  startDate: string;
+  endDate?: string;
+  date?: string;
+  sessionsCount?: number;
   location?: string;
   description?: string;
   status?: EventStatus;
@@ -121,7 +127,10 @@ export async function updateIncomeEvent(
   id: string,
   data: {
     title?: string;
+    startDate?: string;
+    endDate?: string;
     date?: string;
+    sessionsCount?: number;
     location?: string;
     description?: string;
     status?: EventStatus;
