@@ -14,6 +14,7 @@ export interface InventoryFilters {
   isMissing?: boolean | string;
   page?: number;
   limit?: number;
+  sort?: string;
 }
 
 export interface PaginatedInventory {
