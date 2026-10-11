@@ -68,12 +68,10 @@ export function Dashboard() {
               Manage Income
             </Link>
           )}
-          {!isTreasurer && (
-            <Link to="/bills/new" className="btn-primary text-xs">
-              <Plus className="h-4 w-4" strokeWidth={2.25} />
-              Add Bill
-            </Link>
-          )}
+          <Link to="/bills/new" className="btn-primary text-xs">
+            <Plus className="h-4 w-4" strokeWidth={2.25} />
+            Add Bill
+          </Link>
         </div>
       </div>
 

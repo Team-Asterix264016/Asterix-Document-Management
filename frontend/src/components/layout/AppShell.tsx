@@ -36,6 +36,7 @@ const TREASURER_NAV = [
   { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/approval", label: "Pending Approval", shortLabel: "Approve", icon: ClipboardCheck },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
+  { to: "/bills/new", label: "Add Bill", shortLabel: "Add", icon: PlusCircle },
   { to: "/reports", label: "Reports", shortLabel: "Reports", icon: FileBarChart2 },
   { to: "/analytics", label: "Analytics", shortLabel: "Stats", icon: BarChart3 },
 ];
@@ -46,6 +47,7 @@ const ADMIN_NAV = [
   { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/users", label: "Users", shortLabel: "Users", icon: Users },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
+  { to: "/bills/new", label: "Add Bill", shortLabel: "Add", icon: PlusCircle },
   { to: "/reports", label: "Reports", shortLabel: "Reports", icon: FileBarChart2 },
   { to: "/analytics", label: "Analytics", shortLabel: "Stats", icon: BarChart3 },
 ];
@@ -252,7 +254,7 @@ export function AppShell() {
             </div>
           </main>
 
-          <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface/95 backdrop-blur md:hidden">
+          <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-line bg-surface/95 backdrop-blur md:hidden">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -260,7 +262,7 @@ export function AppShell() {
                 end={item.to === "/" || item.to === "/bills" || item.to === "/inventory"}
                 className={({ isActive }) =>
                   clsx(
-                    "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
+                    "flex min-w-[3.75rem] flex-1 flex-col items-center gap-1 px-1 py-2 text-[10px] font-medium transition-colors shrink-0 sm:shrink",
                     isActive ? "text-accent" : "text-ink-500"
                   )
                 }

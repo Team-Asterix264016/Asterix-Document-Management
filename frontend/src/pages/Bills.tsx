@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import { listBills } from "../api/bills";
 import { listSubsystems } from "../api/subsystems";
@@ -31,7 +32,13 @@ export function Bills() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-semibold text-ink-900">Bills</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-ink-900">Bills</h1>
+        <Link to="/bills/new" className="btn-primary text-xs">
+          <Plus className="h-4 w-4" strokeWidth={2.25} />
+          Add Bill
+        </Link>
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1 sm:max-w-xs">
