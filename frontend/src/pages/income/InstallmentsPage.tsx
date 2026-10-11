@@ -133,10 +133,10 @@ export function InstallmentsPage() {
           <button
             onClick={() => handleOpenCreateMilestone("MONTHLY_CHIT")}
             className="btn-secondary !border-purple-200 !bg-purple-50/70 !text-purple-800 hover:!bg-purple-100 !px-3 !py-1.5 text-xs font-semibold"
-            title="Add recurring monthly chit fund (₹180/mo)"
+            title="Add recurring monthly installment (dynamic amount & purpose)"
           >
             <CalendarRange className="h-3.5 w-3.5 text-purple-600" />
-            + Monthly Chit (₹180)
+            + Monthly / Recurring Dues
           </button>
           <button
             onClick={() => handleOpenCreateMilestone("SEASON_MILESTONE")}
@@ -193,7 +193,7 @@ export function InstallmentsPage() {
           }`}
         >
           <CalendarRange className="h-3.5 w-3.5 text-purple-600" />
-          Monthly Chit Fund ({plans.filter((p) => p.planType === "MONTHLY_CHIT").length})
+          Monthly / Recurring Dues ({plans.filter((p) => p.planType === "MONTHLY_CHIT").length})
         </button>
       </div>
 
@@ -202,13 +202,17 @@ export function InstallmentsPage() {
         <div className="card border-purple-200 bg-gradient-to-r from-purple-50 via-surface to-purple-50/40 p-5">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
             <div className="md:border-r md:border-line md:pr-4">
-              <span className="text-xs font-semibold text-purple-900">Monthly Contribution</span>
-              <p className="mt-1 text-2xl font-extrabold text-purple-900">₹180</p>
-              <p className="mt-1 text-[11px] text-ink-500">Fixed monthly chit dues per team member</p>
+              <span className="text-xs font-semibold text-purple-900">Monthly Installment</span>
+              <p className="mt-1 text-2xl font-extrabold text-purple-900">
+                {plans.find((p) => p.planType === "MONTHLY_CHIT")
+                  ? `₹${plans.find((p) => p.planType === "MONTHLY_CHIT")!.amount.toLocaleString("en-IN")}`
+                  : "Dynamic"}
+              </p>
+              <p className="mt-1 text-[11px] text-ink-500">Configurable amount per monthly installment</p>
             </div>
 
             <div className="md:border-r md:border-line md:pr-4">
-              <span className="text-xs font-semibold text-ink-500">Total Chit Pool Collected</span>
+              <span className="text-xs font-semibold text-ink-500">Total Recurring Pool Collected</span>
               <p className="mt-1 text-2xl font-extrabold text-status-approved">
                 ₹{(config?.monthlyChitTotalCollected ?? 0).toLocaleString("en-IN")}
               </p>
@@ -218,9 +222,9 @@ export function InstallmentsPage() {
             </div>
 
             <div className="md:border-r md:border-line md:pr-4">
-              <span className="text-xs font-semibold text-ink-500">Scheduled Chit Months</span>
+              <span className="text-xs font-semibold text-ink-500">Scheduled Recurring Plans</span>
               <p className="mt-1 text-2xl font-extrabold text-ink-900">
-                {config?.monthlyChitPlansCount ?? 0} Months
+                {config?.monthlyChitPlansCount ?? 0} Plans
               </p>
               <p className="mt-1 text-[11px] text-ink-500">
                 Scheduled Pool: ₹{(config?.monthlyChitTotalExpected ?? 0).toLocaleString("en-IN")}
@@ -229,7 +233,7 @@ export function InstallmentsPage() {
 
             <div className="flex flex-col justify-center">
               <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-ink-700">Chit Collection Rate</span>
+                <span className="text-ink-700">Recurring Collection Rate</span>
                 <span className="text-purple-700">
                   {config?.monthlyChitTotalExpected && config.monthlyChitTotalExpected > 0
                     ? Math.round(((config.monthlyChitTotalCollected ?? 0) / config.monthlyChitTotalExpected) * 100)
@@ -249,7 +253,7 @@ export function InstallmentsPage() {
                   }}
                 />
               </div>
-              <p className="mt-1.5 text-[10px] text-ink-400">Recurring team member chit savings</p>
+              <p className="mt-1.5 text-[10px] text-ink-400">Monthly dues and team pool contributions</p>
             </div>
           </div>
         </div>
@@ -357,7 +361,7 @@ export function InstallmentsPage() {
                         <span className="text-xs font-bold text-ink-900">{plan.title}</span>
                         {isChit ? (
                           <span className="rounded bg-purple-100 px-1.5 py-0.2 text-[9px] font-bold text-purple-700">
-                            Chit
+                            Monthly
                           </span>
                         ) : (
                           <span className="rounded bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
@@ -413,12 +417,12 @@ export function InstallmentsPage() {
             <Target className="h-8 w-8 text-ink-300" />
             <h3 className="mt-2 text-sm font-bold text-ink-900">
               {planCategoryFilter === "MONTHLY_CHIT"
-                ? "No monthly chit fund schedules yet"
+                ? "No monthly recurring installments yet"
                 : "No installment milestones created yet"}
             </h3>
             <p className="mt-1 text-xs text-ink-500">
               {planCategoryFilter === "MONTHLY_CHIT"
-                ? "Click below to add a recurring monthly chit fund (e.g. ₹180 for this month)."
+                ? "Click below to add a recurring monthly installment (custom amount and purpose)."
                 : "Create your first installment milestone (e.g., Installment 1: ₹3,000) to start tracking."}
             </p>
             <button
@@ -426,7 +430,7 @@ export function InstallmentsPage() {
               className="btn-primary mt-3 !px-3.5 !py-1.5 text-xs"
             >
               <Plus className="h-3.5 w-3.5" />
-              {planCategoryFilter === "MONTHLY_CHIT" ? "Add Monthly Chit Fund" : "Create First Milestone"}
+              {planCategoryFilter === "MONTHLY_CHIT" ? "Add Monthly Installment" : "Create First Milestone"}
             </button>
           </div>
         )}
@@ -508,7 +512,7 @@ export function InstallmentsPage() {
                           {p.title}
                           {isChit ? (
                             <span className="rounded bg-purple-100 px-1 py-0.2 text-[8px] font-bold text-purple-700">
-                              Chit
+                              Monthly
                             </span>
                           ) : (
                             <span className="rounded bg-blue-50 px-1 py-0.2 text-[8px] font-bold text-blue-700">
