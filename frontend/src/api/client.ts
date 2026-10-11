@@ -66,6 +66,17 @@ export const usersApi = {
     const res = await api.post("/users", userData);
     return res.data;
   },
+  update: async (
+    id: string,
+    data: { displayName?: string; username?: string; role?: Role; active?: boolean }
+  ) => {
+    const res = await api.put(`/users/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: string) => {
+    const res = await api.delete(`/users/${id}`);
+    return res.data;
+  },
   resetPassword: async (id: string, newPassword: string) => {
     const res = await api.patch(`/users/${id}/password`, { newPassword });
     return res.data;

@@ -39,4 +39,35 @@ describe("Authentication", () => {
 
     expect(res.status).toBe(403);
   });
+
+  it("allows ADMIN to edit user details and delete users", async () => {
+    const { user: adminUser, password: adminPw } = await createUser({ username: "admin_tester", password: "password123", role: "ADMIN" });
+    const { user: targetUser } = await createUser({ username: "edit_target", password: "password123", role: "MEMBER" });
+
+    const loginRes = await request(app).post("/api/auth/login").send({ username: "admin_tester", password: adminPw });
+    const adminToken = loginRes.body.token;
+
+    // 1. Edit user displayName and role
+    const editRes = await request(app)
+      .put(`/api/users/${targetUser.id}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ displayName: "Updated Name", role: "TREASURER" });
+
+    expect(editRes.status).toBe(200);
+    expect(editRes.body.data.displayName).toBe("Updated Name");
+    expect(editRes.body.data.role).toBe("TREASURER");
+
+    // 2. Prevent self-deletion by admin
+    const selfDel = await request(app)
+      .delete(`/api/users/${adminUser.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(selfDel.status).toBe(400);
+
+    // 3. Delete target user
+    const delRes = await request(app)
+      .delete(`/api/users/${targetUser.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(delRes.status).toBe(200);
+  });
 });
+
