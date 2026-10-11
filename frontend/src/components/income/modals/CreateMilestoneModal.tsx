@@ -147,8 +147,8 @@ export function CreateMilestoneModal({
                 <input
                   id="milestone-amount"
                   type="number"
-                  min="1"
-                  step="50"
+                  min="0"
+                  step="any"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="3000"

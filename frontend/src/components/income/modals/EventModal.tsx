@@ -304,7 +304,7 @@ export function EventModal({
                       <input
                         type="number"
                         min="0"
-                        step="10"
+                        step="any"
                         value={tier.pricePerParticipant}
                         onChange={(e) =>
                           handleTierChange(idx, "pricePerParticipant", e.target.value)

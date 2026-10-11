@@ -199,7 +199,7 @@ export function SponsorModal({
                   id="sponsor-amount"
                   type="number"
                   min="0"
-                  step="500"
+                  step="any"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="50000"
