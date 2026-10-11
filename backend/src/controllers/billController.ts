@@ -23,9 +23,23 @@ export const getBill = asyncHandler(async (req: Request, res: Response) => {
 export const updateBill = asyncHandler(async (req: Request, res: Response) => {
   const bill = await billService.getBillOrThrow(req.params.id);
   billService.assertCanViewBill(bill, { userId: req.user!.sub, role: req.user!.role });
-  if (String(bill.uploadedBy) !== req.user!.sub) throw ApiError.forbidden("You can only edit your own bills");
-  const updated = await billService.updateBill(req.params.id, req.body);
+  const isPrivileged = req.user!.role === "ADMIN" || req.user!.role === "TREASURER";
+  if (String(bill.uploadedBy) !== req.user!.sub && !isPrivileged) {
+    throw ApiError.forbidden("You do not have permission to edit this bill");
+  }
+  const updated = await billService.updateBill(req.params.id, req.body, isPrivileged);
   res.json({ bill: updated });
+});
+
+export const deleteBill = asyncHandler(async (req: Request, res: Response) => {
+  const bill = await billService.getBillOrThrow(req.params.id);
+  billService.assertCanViewBill(bill, { userId: req.user!.sub, role: req.user!.role });
+  const isPrivileged = req.user!.role === "ADMIN" || req.user!.role === "TREASURER";
+  if (String(bill.uploadedBy) !== req.user!.sub && !isPrivileged) {
+    throw ApiError.forbidden("You do not have permission to delete this bill");
+  }
+  await billService.deleteBill(req.params.id);
+  res.json({ message: "Bill deleted successfully" });
 });
 
 export const uploadAttachments = asyncHandler(async (req: Request, res: Response) => {

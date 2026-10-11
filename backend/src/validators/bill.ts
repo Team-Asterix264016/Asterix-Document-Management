@@ -36,6 +36,7 @@ export const updateBillSchema = z.object({
   items: z.array(itemSchema).max(200).optional(),
   subsystemId: z.string().nullable().optional(),
   newSubsystemName: z.string().max(100).nullable().optional(),
+  status: z.enum(["DRAFT", "PROCESSING", "PENDING_APPROVAL", "APPROVED", "REJECTED"]).optional(),
 });
 
 export const submitBillSchema = z.object({

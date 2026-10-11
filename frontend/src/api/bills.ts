@@ -54,3 +54,8 @@ export async function rejectBill(id: string, reason?: string): Promise<Bill> {
   const res = await api.post<{ bill: Bill }>(`/bills/${id}/reject`, { reason });
   return res.data.bill;
 }
+
+export async function deleteBill(id: string): Promise<{ message: string }> {
+  const res = await api.delete<{ message: string }>(`/bills/${id}`);
+  return res.data;
+}
