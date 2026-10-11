@@ -42,15 +42,14 @@ export function CreateMilestoneModal({
       const mm = String(now.getMonth() + 1).padStart(2, "0");
       const currentMonthVal = `${yyyy}-${mm}`;
       setBillingMonth(currentMonthVal);
-      setAmount("180");
+      setAmount("");
       const monthLabel = formatMonthLabel(currentMonthVal);
-      setTitle(`${monthLabel} - Monthly Chit Fund`);
-      // Last day of current month as default due date
+      setTitle(`${monthLabel} - Monthly Contribution`);
       const lastDay = new Date(yyyy, now.getMonth() + 1, 0).toISOString().split("T")[0];
       setDueDate(lastDay);
-      setDescription("Monthly recurring team chit fund contribution");
+      setDescription("");
     } else {
-      setAmount("2500");
+      setAmount("");
       setTitle("");
       setBillingMonth("");
       setDescription("");
@@ -68,12 +67,12 @@ export function CreateMilestoneModal({
         const mm = String(now.getMonth() + 1).padStart(2, "0");
         const currentMonthVal = `${yyyy}-${mm}`;
         setBillingMonth(currentMonthVal);
-        setAmount("180");
+        setAmount("");
         const monthLabel = formatMonthLabel(currentMonthVal);
-        setTitle(`${monthLabel} - Monthly Chit Fund`);
+        setTitle(`${monthLabel} - Monthly Contribution`);
         const lastDay = new Date(yyyy, now.getMonth() + 1, 0).toISOString().split("T")[0];
         setDueDate(lastDay);
-        setDescription("Monthly recurring team chit fund contribution");
+        setDescription("");
       } else {
         setTitle("");
         setAmount("");
@@ -186,7 +185,7 @@ export function CreateMilestoneModal({
             }`}
           >
             <Layers className="h-4 w-4 text-accent" />
-            Seasonal Milestone (10K Build)
+            Seasonal Milestone (Build Target)
           </button>
           <button
             type="button"
@@ -198,7 +197,7 @@ export function CreateMilestoneModal({
             }`}
           >
             <CalendarRange className="h-4 w-4 text-purple-600" />
-            Monthly Chit Fund (₹180/mo)
+            Monthly / Recurring Installment
           </button>
         </div>
 
@@ -217,7 +216,7 @@ export function CreateMilestoneModal({
                     const m = e.target.value;
                     setBillingMonth(m);
                     const label = formatMonthLabel(m);
-                    setTitle(`${label} - Monthly Chit Fund`);
+                    setTitle(`${label} - Monthly Installment`);
                     if (m) {
                       const [yr, mo] = m.split("-").map(Number);
                       const lastDay = new Date(yr, mo, 0).toISOString().split("T")[0];
@@ -232,14 +231,14 @@ export function CreateMilestoneModal({
                 </span>
               </div>
               <p className="mt-1.5 text-[11px] text-purple-700">
-                Monthly chit fund contribution for team pool.
+                Monthly dues or pool contribution (any purpose, flexible amount).
               </p>
             </div>
           ) : null}
 
           <div>
             <label htmlFor="milestone-title" className="field-label">
-              {planType === "MONTHLY_CHIT" ? "Chit Fund Title *" : "Milestone Title *"}
+              {planType === "MONTHLY_CHIT" ? "Installment Purpose / Title *" : "Milestone Title *"}
             </label>
             <input
               id="milestone-title"
@@ -248,7 +247,7 @@ export function CreateMilestoneModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={
                 planType === "MONTHLY_CHIT"
-                  ? "e.g., October 2026 - Monthly Chit Fund"
+                  ? "e.g., October 2026 - Chit Fund, Tool Pool, Club Dues"
                   : "e.g., Installment 1 - Chassis Materials"
               }
               required
@@ -262,15 +261,7 @@ export function CreateMilestoneModal({
                 <label htmlFor="milestone-amount" className="field-label">
                   Amount Per Member (₹) *
                 </label>
-                {planType === "MONTHLY_CHIT" && (
-                  <button
-                    type="button"
-                    onClick={() => setAmount("180")}
-                    className="text-[10px] font-bold text-purple-700 hover:underline"
-                  >
-                    Set ₹180
-                  </button>
-                )}
+                <span className="text-[10px] text-ink-400">Dynamic</span>
               </div>
               <div className="relative mt-1">
                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm font-semibold text-ink-400">
@@ -283,74 +274,39 @@ export function CreateMilestoneModal({
                   step="any"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder={planType === "MONTHLY_CHIT" ? "180" : "3000"}
+                  placeholder="Enter custom amount"
                   required
                   className="field-input !pl-8 font-semibold text-ink-900"
                 />
               </div>
               {/* Presets */}
-              <div className="mt-1.5 flex items-center gap-1.5">
-                {planType === "MONTHLY_CHIT" ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("180")}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        amount === "180" ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
-                      }`}
-                    >
-                      ₹180
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("200")}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        amount === "200" ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
-                      }`}
-                    >
-                      ₹200
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("250")}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        amount === "250" ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
-                      }`}
-                    >
-                      ₹250
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("2500")}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        amount === "2500" ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
-                      }`}
-                    >
-                      ₹2,500
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("3000")}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        amount === "3000" ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
-                      }`}
-                    >
-                      ₹3,000
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAmount("5000")}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        amount === "5000" ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
-                      }`}
-                    >
-                      ₹5,000
-                    </button>
-                  </>
-                )}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-ink-400">Quick set:</span>
+                {planType === "MONTHLY_CHIT"
+                  ? ["180", "200", "250", "500", "1000"].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setAmount(p)}
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          amount === p ? "bg-purple-600 text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                        }`}
+                      >
+                        ₹{p}
+                      </button>
+                    ))
+                  : ["2500", "3000", "5000"].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setAmount(p)}
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          amount === p ? "bg-accent text-white" : "bg-canvas text-ink-600 hover:bg-line"
+                        }`}
+                      >
+                        ₹{Number(p).toLocaleString("en-IN")}
+                      </button>
+                    ))}
               </div>
             </div>
 
