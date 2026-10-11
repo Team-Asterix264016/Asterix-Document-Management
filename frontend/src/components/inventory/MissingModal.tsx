@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { InventoryItem } from "../../types";
 import { toggleMissing } from "../../api/inventory";
 import { createToBuy } from "../../api/toBuy";
@@ -18,6 +19,20 @@ export function MissingModal({ isOpen, item, onClose, onSuccess }: Props) {
   const [lastKnownLocation, setLastKnownLocation] = useState("");
   const [addToBuyList, setAddToBuyList] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = orig;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (item) {
@@ -82,9 +97,19 @@ export function MissingModal({ isOpen, item, onClose, onSuccess }: Props) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/60 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-card animate-fade-up">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/50 backdrop-blur-sm animate-fade-in"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-card animate-fade-up"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-line pb-4">
           <div className="flex items-center gap-2.5">
@@ -217,6 +242,7 @@ export function MissingModal({ isOpen, item, onClose, onSuccess }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   createInventoryItem,
   updateInventoryItem,
@@ -44,6 +45,20 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
   const [assignedTo, setAssignedTo] = useState("ALL");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = orig;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -132,9 +147,19 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/60 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-surface p-6 shadow-card animate-fade-up">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/50 backdrop-blur-sm animate-fade-in"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-surface p-6 shadow-card animate-fade-up"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-line pb-4">
           <div className="flex items-center gap-2.5">
@@ -333,6 +358,7 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
