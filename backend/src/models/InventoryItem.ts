@@ -49,7 +49,6 @@ const inventoryItemSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, index: true },
     partNumber: { type: String, default: "", trim: true, index: true },
-    subsystem: { type: Schema.Types.ObjectId, ref: "Subsystem", default: null, index: true },
     category: { type: String, default: "General", trim: true, index: true },
     description: { type: String, default: "" },
     quantity: { type: Number, default: 1, min: 0 },

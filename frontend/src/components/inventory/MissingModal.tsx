@@ -56,7 +56,6 @@ export function MissingModal({ isOpen, item, onClose, onSuccess }: Props) {
           try {
             await createToBuy({
               itemName: item.name,
-              subsystem: (item.subsystem as any)?._id || (item.subsystem as any) || undefined,
               category: item.category,
               quantity: item.quantity || 1,
               unit: item.unit || "pcs",

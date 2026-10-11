@@ -5,8 +5,7 @@ import {
   getTeamMembers,
   type TeamMember,
 } from "../../api/inventory";
-import { listSubsystems } from "../../api/subsystems";
-import type { Subsystem, InventoryItem } from "../../types";
+import type { InventoryItem } from "../../types";
 import { useToast } from "../ui/Toast";
 import { X, Plus, Save, Package, Layers, Hash, MapPin, AlignLeft, Users, User } from "lucide-react";
 
@@ -34,12 +33,10 @@ const UNIT_PRESETS = ["pcs", "sets", "meters", "kg", "liters", "boxes"];
 
 export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: Props) {
   const { push } = useToast();
-  const [subsystems, setSubsystems] = useState<Subsystem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
 
   const [name, setName] = useState("");
   const [partNumber, setPartNumber] = useState("");
-  const [subsystemId, setSubsystemId] = useState("");
   const [category, setCategory] = useState("Fasteners & Hardware");
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState("pcs");
@@ -50,12 +47,11 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
 
   useEffect(() => {
     if (isOpen) {
-      Promise.all([listSubsystems(), getTeamMembers()])
-        .then(([subs, mems]) => {
-          setSubsystems(subs);
+      getTeamMembers()
+        .then((mems) => {
           setMembers(mems);
         })
-        .catch(() => push("Failed to load options", "error"));
+        .catch(() => push("Failed to load team members", "error"));
     }
   }, [isOpen, push]);
 
@@ -63,7 +59,6 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
     if (initialItem) {
       setName(initialItem.name || "");
       setPartNumber(initialItem.partNumber || "");
-      setSubsystemId((initialItem.subsystem as any)?._id || (initialItem.subsystem as any) || "");
       setCategory(initialItem.category || "Fasteners & Hardware");
       setQuantity(String(initialItem.quantity || 1));
       setUnit(initialItem.unit || "pcs");
@@ -77,7 +72,6 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
     } else {
       setName("");
       setPartNumber("");
-      setSubsystemId("");
       setCategory("Fasteners & Hardware");
       setQuantity("1");
       setUnit("pcs");
@@ -104,7 +98,6 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
         await updateInventoryItem(initialItem._id, {
           name: name.trim(),
           partNumber: partNumber.trim(),
-          subsystem: (subsystemId || undefined) as any,
           category: category.trim(),
           quantity: Math.max(0, parseInt(quantity, 10) || 1),
           unit: unit.trim(),
@@ -118,7 +111,6 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
         await createInventoryItem({
           name: name.trim(),
           partNumber: partNumber.trim(),
-          subsystem: (subsystemId || undefined) as any,
           category: category.trim(),
           quantity: Math.max(0, parseInt(quantity, 10) || 1),
           unit: unit.trim(),
@@ -216,7 +208,7 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
             </p>
           </div>
 
-          {/* Part Number & Subsystem */}
+          {/* Part Number & Category */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="field-label flex items-center gap-1">
@@ -235,27 +227,8 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
             <div>
               <label className="field-label flex items-center gap-1">
                 <Layers className="h-3 w-3" />
-                Subsystem
+                Category *
               </label>
-              <select
-                className="field-input"
-                value={subsystemId}
-                onChange={(e) => setSubsystemId(e.target.value)}
-              >
-                <option value="">Select Subsystem...</option>
-                {subsystems.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Category & Location */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="field-label">Category</label>
               <select
                 className="field-input"
                 value={category}
@@ -268,21 +241,22 @@ export function AddComponentModal({ isOpen, initialItem, onClose, onSuccess }: P
                 ))}
               </select>
             </div>
+          </div>
 
-            <div>
-              <label className="field-label flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                Where It Is (Location) *
-              </label>
-              <input
-                type="text"
-                required
-                className="field-input"
-                placeholder="e.g., Bay 2 - Shelf 3, Bin C"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
+          {/* Location */}
+          <div>
+            <label className="field-label flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              Where It Is (Location) *
+            </label>
+            <input
+              type="text"
+              required
+              className="field-input"
+              placeholder="e.g., Bay 2 - Shelf 3, Bin C"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
           </div>
 
           {/* Quantity & Unit */}

@@ -9,7 +9,6 @@ import type {
 export interface InventoryFilters {
   q?: string;
   status?: InventoryStatus | "ALL" | string;
-  subsystem?: string;
   category?: string;
   assignedTo?: string;
   isMissing?: boolean | string;

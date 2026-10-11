@@ -140,7 +140,6 @@ export interface InventoryItem {
   _id: string;
   name: string;
   partNumber: string;
-  subsystem?: { _id: string; name: string } | null;
   category: string;
   description: string;
   quantity: number;

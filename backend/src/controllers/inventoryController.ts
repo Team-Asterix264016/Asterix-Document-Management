@@ -9,7 +9,6 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
   const {
     q,
     status,
-    subsystem,
     category,
     assignedTo,
     isMissing,
@@ -25,10 +24,6 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
 
   if (status && status !== "ALL") {
     filter.status = status;
-  }
-
-  if (subsystem) {
-    filter.subsystem = subsystem;
   }
 
   if (category) {
@@ -64,7 +59,6 @@ export const listInventory = asyncHandler(async (req: Request, res: Response) =>
 
   const [items, total] = await Promise.all([
     InventoryItem.find(filter)
-      .populate("subsystem", "name")
       .populate("assignedTo", "displayName username")
       .populate("missingDetails.reportedBy", "displayName username")
       .populate("missingDetails.lastKnownHolder", "displayName username")
@@ -109,7 +103,6 @@ export const getInventoryStats = asyncHandler(async (_req: Request, res: Respons
 
 export const getInventoryItem = asyncHandler(async (req: Request, res: Response) => {
   const item = await InventoryItem.findById(req.params.id)
-    .populate("subsystem", "name")
     .populate("assignedTo", "displayName username")
     .populate("createdByUser", "displayName username")
     .populate("history.user", "displayName username")
@@ -128,7 +121,6 @@ export const createInventoryItem = asyncHandler(async (req: Request, res: Respon
   const {
     name,
     partNumber,
-    subsystem,
     category,
     description,
     quantity = 1,
@@ -149,7 +141,6 @@ export const createInventoryItem = asyncHandler(async (req: Request, res: Respon
   const item = new InventoryItem({
     name: name.trim(),
     partNumber: (partNumber || "").trim(),
-    subsystem: subsystem || null,
     category: (category || "General").trim(),
     description: (description || "").trim(),
     quantity: Math.max(0, Number(quantity) || 1),
@@ -175,7 +166,7 @@ export const createInventoryItem = asyncHandler(async (req: Request, res: Respon
   });
 
   await item.save();
-  const populated = await item.populate(["subsystem", "assignedTo"]);
+  const populated = await item.populate(["assignedTo"]);
   res.status(201).json({ item: populated });
 });
 
@@ -184,7 +175,6 @@ export const updateInventoryItem = asyncHandler(async (req: Request, res: Respon
   const {
     name,
     partNumber,
-    subsystem,
     category,
     description,
     quantity,
@@ -205,7 +195,6 @@ export const updateInventoryItem = asyncHandler(async (req: Request, res: Respon
 
   if (name !== undefined) item.name = name.trim();
   if (partNumber !== undefined) item.partNumber = partNumber.trim();
-  if (subsystem !== undefined) item.subsystem = subsystem || null;
   if (category !== undefined) item.category = category.trim();
   if (description !== undefined) item.description = description;
   if (quantity !== undefined) item.quantity = Math.max(0, Number(quantity));
@@ -246,7 +235,7 @@ export const updateInventoryItem = asyncHandler(async (req: Request, res: Respon
   }
 
   await item.save();
-  const populated = await item.populate(["subsystem", "assignedTo"]);
+  const populated = await item.populate(["assignedTo"]);
   res.json({ item: populated });
 });
 
@@ -331,7 +320,6 @@ export const updateCustody = asyncHandler(async (req: Request, res: Response) =>
 
   await item.save();
   const populated = await item.populate([
-    "subsystem",
     "assignedTo",
     "history.user",
     "history.performedBy",
@@ -397,7 +385,6 @@ export const toggleMissing = asyncHandler(async (req: Request, res: Response) =>
 
   await item.save();
   const populated = await item.populate([
-    "subsystem",
     "assignedTo",
     "missingDetails.reportedBy",
     "missingDetails.lastKnownHolder",
