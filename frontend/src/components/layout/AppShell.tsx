@@ -14,6 +14,7 @@ import {
   Heart,
   Users,
   Boxes,
+  Wallet,
 } from "lucide-react";
 import { AiAssistantModal } from "../ui/AiAssistantModal";
 import { LiveClock } from "./LiveClock";
@@ -31,6 +32,7 @@ const MEMBER_NAV = [
 
 const TREASURER_NAV = [
   { to: "/", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { to: "/income", label: "Income & Treasury", shortLabel: "Income", icon: Wallet },
   { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/approval", label: "Pending Approval", shortLabel: "Approve", icon: ClipboardCheck },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
@@ -40,6 +42,7 @@ const TREASURER_NAV = [
 
 const ADMIN_NAV = [
   { to: "/", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { to: "/income", label: "Income & Treasury", shortLabel: "Income", icon: Wallet },
   { to: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Boxes },
   { to: "/users", label: "Users", shortLabel: "Users", icon: Users },
   { to: "/bills", label: "Bills", shortLabel: "Bills", icon: Receipt },
@@ -57,6 +60,11 @@ function pageTitle(pathname: string): string {
   if (pathname === "/") return "Dashboard";
   if (pathname === "/bills/new") return "Add Bill";
   if (pathname.startsWith("/bills/")) return "Bill Details";
+  if (pathname === "/income") return "Treasury & Income Hub";
+  if (pathname === "/income/installments") return "Team Installments";
+  if (pathname === "/income/events") return "Workshops & Events";
+  if (pathname === "/income/sponsors") return "Sponsorships";
+  if (pathname === "/income/misc") return "Miscellaneous Inflow";
   const map: Record<string, string> = {
     "/inventory": "Inventory & Hardware",
     "/bills": "Bills",

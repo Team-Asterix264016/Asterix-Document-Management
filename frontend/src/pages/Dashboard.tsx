@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, ArrowRight, TrendingUp, Receipt, Wallet, CalendarCheck, GraduationCap, Award, WalletCards } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useAsync } from "../hooks/useAsync";
 import { listBills } from "../api/bills";
 import { getSummary, getCategories, getMonthly } from "../api/analytics";
+import { getTreasuryOverview } from "../api/income";
 import { SummaryCard } from "../components/ui/SummaryCard";
 import { BillList } from "../components/bills/BillList";
 import { SkeletonBillRows, SkeletonChart, SkeletonSummaryCards } from "../components/ui/Skeleton";
@@ -14,36 +15,119 @@ import { ResponsiveContainer, BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tool
 export function Dashboard() {
   const { user } = useAuth();
   const isTreasurer = user?.role === "TREASURER";
+  const isAdmin = user?.role === "ADMIN";
+  const isPrivileged = isTreasurer || isAdmin;
 
   const summary = useAsync(() => getSummary(), []);
   const categories = useAsync(() => getCategories(), []);
   const monthly = useAsync(() => getMonthly(), []);
-  const pending = useAsync(() => listBills({ status: "PENDING_APPROVAL", limit: 5, sort: "-submittedAt" }), []);
+  const treasury = useAsync(
+    () => (isPrivileged ? getTreasuryOverview() : Promise.resolve(null)),
+    [isPrivileged]
+  );
+  const pending = useAsync(
+    () =>
+      isTreasurer
+        ? listBills({ status: "PENDING_APPROVAL", limit: 5, sort: "-submittedAt" })
+        : Promise.resolve({ items: [], total: 0, page: 1, limit: 5, pages: 1 }),
+    [isTreasurer]
+  );
   const recent = useAsync(() => listBills({ limit: 6 }), [isTreasurer]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
+  const totalInflow = treasury.data?.inflow?.total ?? 0;
+  const approvedExpenditure = summary.data?.approvedExpenditure ?? 0;
+  const netBalance = totalInflow - approvedExpenditure;
+
   return (
     <div className="flex flex-col gap-8">
+      {/* Welcome Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-ink-500">Asterix A-BAJA 2027</p>
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
+              Asterix A-BAJA '27
+            </span>
+            {isPrivileged && (
+              <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-status-approved">
+                Financial Command Center
+              </span>
+            )}
+          </div>
           <h1 className="mt-1 text-2xl font-semibold text-ink-900">
             {greeting}, {user?.displayName?.split(" ")[0]}
           </h1>
         </div>
-        {!isTreasurer && (
-          <Link to="/bills/new" className="btn-primary">
-            <Plus className="h-4 w-4" strokeWidth={2.25} />
-            Add Bill
-          </Link>
-        )}
+
+        <div className="flex items-center gap-2.5">
+          {isPrivileged && (
+            <Link to="/income" className="btn-secondary text-xs">
+              <Wallet className="h-3.5 w-3.5 text-accent" />
+              Manage Income
+            </Link>
+          )}
+          {!isTreasurer && (
+            <Link to="/bills/new" className="btn-primary text-xs">
+              <Plus className="h-4 w-4" strokeWidth={2.25} />
+              Add Bill
+            </Link>
+          )}
+        </div>
       </div>
 
-      {summary.loading ? (
+      {/* Top Financial Summary Cards */}
+      {summary.loading || (isPrivileged && treasury.loading) ? (
         <SkeletonSummaryCards />
+      ) : isPrivileged ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Net Treasury Balance */}
+          <div className="card relative overflow-hidden p-4 border-accent/20 bg-gradient-to-br from-surface to-accent-soft/20">
+            <span className="text-xs font-semibold text-ink-600">Net Treasury Balance</span>
+            <p className={`mt-1.5 text-2xl font-extrabold ${netBalance >= 0 ? "text-status-approved" : "text-status-rejected"}`}>
+              {formatINR(netBalance)}
+            </p>
+            <p className="mt-1 text-[11px] text-ink-500">
+              Total Inflow minus Outflow
+            </p>
+          </div>
+
+          {/* Total Inflow */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-ink-500">Total Inflow (Income)</span>
+              <TrendingUp className="h-4 w-4 text-status-approved" />
+            </div>
+            <p className="mt-1.5 text-2xl font-extrabold text-ink-900">
+              {formatINR(totalInflow)}
+            </p>
+            <p className="mt-1 text-[11px] text-ink-500">Across all 4 income avenues</p>
+          </div>
+
+          {/* Approved Outflow */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-ink-500">Approved Expenditure</span>
+              <Receipt className="h-4 w-4 text-ink-400" />
+            </div>
+            <p className="mt-1.5 text-2xl font-extrabold text-ink-900">
+              {summary.data ? formatINR(summary.data.approvedExpenditure) : "—"}
+            </p>
+            <p className="mt-1 text-[11px] text-ink-500">
+              {summary.data?.approvedCount ?? 0} approved bills
+            </p>
+          </div>
+
+          {/* Pending Bills */}
+          <SummaryCard
+            label="Pending bills"
+            value={summary.data ? String(summary.data.pendingCount) : "—"}
+            tone="warn"
+          />
+        </div>
       ) : (
+        /* Member Dashboard Cards */
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard label="Approved expenditure" value={summary.data ? formatINR(summary.data.approvedExpenditure) : "—"} />
           <SummaryCard label="Pending bills" value={summary.data ? String(summary.data.pendingCount) : "—"} tone="warn" />
@@ -52,6 +136,7 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Treasurer Pending Approvals Section */}
       {isTreasurer && (
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -60,12 +145,82 @@ export function Dashboard() {
               Review all →
             </Link>
           </div>
-          {pending.loading ? <SkeletonBillRows count={3} /> : (
+          {pending.loading ? (
+            <SkeletonBillRows count={3} />
+          ) : (
             <BillList bills={pending.data?.items ?? []} emptyTitle="No pending bills" emptySubtitle="You're all caught up." />
           )}
         </section>
       )}
 
+      {/* Privileged: Inflow Breakdown Strip */}
+      {isPrivileged && treasury.data && totalInflow > 0 && (
+        <section className="card p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-ink-900">Treasury Inflows by Category</h2>
+              <p className="text-xs text-ink-500">Overview of capital secured for Team Asterix</p>
+            </div>
+            <Link to="/income" className="flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
+              Full Income Hub <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Link to="/income/installments" className="rounded-md border border-line bg-canvas p-3 transition-colors hover:border-accent">
+              <div className="flex items-center gap-1.5 text-xs text-ink-500">
+                <CalendarCheck className="h-3.5 w-3.5 text-accent" />
+                <span>Installments</span>
+              </div>
+              <p className="mt-1 text-base font-extrabold text-accent">
+                ₹{(treasury.data.inflow.breakdown.installments).toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10px] text-ink-400">
+                {treasury.data.inflow.installmentsProgress.percentage}% of member target
+              </p>
+            </Link>
+
+            <Link to="/income/events" className="rounded-md border border-line bg-canvas p-3 transition-colors hover:border-blue-500">
+              <div className="flex items-center gap-1.5 text-xs text-ink-500">
+                <GraduationCap className="h-3.5 w-3.5 text-blue-600" />
+                <span>Workshops & Events</span>
+              </div>
+              <p className="mt-1 text-base font-extrabold text-blue-700">
+                ₹{(treasury.data.inflow.breakdown.events).toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10px] text-ink-400">
+                {treasury.data.inflow.eventsSummary.totalParticipants} attendees
+              </p>
+            </Link>
+
+            <Link to="/income/sponsors" className="rounded-md border border-line bg-canvas p-3 transition-colors hover:border-amber-500">
+              <div className="flex items-center gap-1.5 text-xs text-ink-500">
+                <Award className="h-3.5 w-3.5 text-amber-600" />
+                <span>Sponsors</span>
+              </div>
+              <p className="mt-1 text-base font-extrabold text-amber-700">
+                ₹{(treasury.data.inflow.breakdown.sponsorsReceived).toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10px] text-ink-400">
+                +₹{(treasury.data.inflow.breakdown.sponsorsPledged).toLocaleString("en-IN")} pledged
+              </p>
+            </Link>
+
+            <Link to="/income/misc" className="rounded-md border border-line bg-canvas p-3 transition-colors hover:border-emerald-500">
+              <div className="flex items-center gap-1.5 text-xs text-ink-500">
+                <WalletCards className="h-3.5 w-3.5 text-status-approved" />
+                <span>Miscellaneous</span>
+              </div>
+              <p className="mt-1 text-base font-extrabold text-status-approved">
+                ₹{(treasury.data.inflow.breakdown.misc).toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10px] text-ink-400">Grants, prizes & scrap</p>
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* Analytics Charts Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section>
           <h2 className="mb-3 text-sm font-semibold text-ink-900">Spending Trend</h2>
@@ -123,6 +278,7 @@ export function Dashboard() {
         </section>
       </div>
 
+      {/* Recent Bills */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink-900">Recent Bills</h2>

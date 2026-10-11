@@ -18,6 +18,13 @@ const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.R
 const Analytics = lazy(() => import("./pages/Analytics").then((m) => ({ default: m.Analytics })));
 const Users = lazy(() => import("./pages/Users").then((m) => ({ default: m.Users })));
 
+// Income & Treasury routes
+const IncomeOverview = lazy(() => import("./pages/income/IncomeOverview").then((m) => ({ default: m.IncomeOverview })));
+const InstallmentsPage = lazy(() => import("./pages/income/InstallmentsPage").then((m) => ({ default: m.InstallmentsPage })));
+const EventsPage = lazy(() => import("./pages/income/EventsPage").then((m) => ({ default: m.EventsPage })));
+const SponsorsPage = lazy(() => import("./pages/income/SponsorsPage").then((m) => ({ default: m.SponsorsPage })));
+const MiscIncomePage = lazy(() => import("./pages/income/MiscIncomePage").then((m) => ({ default: m.MiscIncomePage })));
+
 function PageFallback() {
   return (
     <div className="flex justify-center py-24">
@@ -44,6 +51,15 @@ export default function App() {
                   <Route path="/bills/:id" element={<BillDetails />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/analytics" element={<Analytics />} />
+
+                  {/* Income & Treasury - Strictly Restricted to TREASURER and ADMIN */}
+                  <Route element={<ProtectedRoute allow={["TREASURER", "ADMIN"]} />}>
+                    <Route path="/income" element={<IncomeOverview />} />
+                    <Route path="/income/installments" element={<InstallmentsPage />} />
+                    <Route path="/income/events" element={<EventsPage />} />
+                    <Route path="/income/sponsors" element={<SponsorsPage />} />
+                    <Route path="/income/misc" element={<MiscIncomePage />} />
+                  </Route>
 
                   <Route element={<ProtectedRoute allow={["TREASURER"]} />}>
                     <Route path="/approval" element={<Approval />} />
