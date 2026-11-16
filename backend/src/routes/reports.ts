@@ -8,6 +8,6 @@ router.use(requireAuth);
 
 router.get("/subsystems", reportController.listSubsystemReports);
 router.get("/monthly", reportController.listMonthlyReports);
-router.post("/regenerate", requireRole("TREASURER"), reportController.regenerateReports);
+router.post("/regenerate", requireRole("TREASURER", "ADMIN"), reportController.regenerateReports);
 
 export default router;

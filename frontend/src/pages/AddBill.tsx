@@ -8,7 +8,7 @@ import { apiErrorMessage } from "../api/client";
 import { Spinner } from "../components/ui/Spinner";
 import { formatINR } from "../utils/format";
 import type { Bill, BillItem } from "../types";
-import { AlertTriangle, FileText, Sparkles, UploadCloud, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, FileText, Sparkles, UploadCloud, Plus, Trash2, ExternalLink } from "lucide-react";
 
 const PROCESSING_MESSAGES = ["Reading bill…", "Extracting information…", "Identifying subsystem…", "Checking for duplicates…"];
 
@@ -30,21 +30,85 @@ interface FormState {
   usingNewSubsystem: boolean;
 }
 
-function billToForm(bill: Bill): FormState {
+function toDateInputValue(val: string | null | undefined): string {
+  if (!val) return "";
+  if (typeof val === "string") {
+    const isoMatch = /^(\d{4}-\d{2}-\d{2})/.exec(val);
+    if (isoMatch) return isoMatch[1];
+    const ddmmyyyy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(val.trim());
+    if (ddmmyyyy) {
+      const day = ddmmyyyy[1].padStart(2, "0");
+      const month = ddmmyyyy[2].padStart(2, "0");
+      const year = ddmmyyyy[3];
+      return `${year}-${month}-${day}`;
+    }
+  }
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().slice(0, 10);
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+function billToForm(bill: Bill, availableSubsystems?: Array<{ _id: string; name: string }> | null): FormState {
+  const items: BillItem[] =
+    bill.items && bill.items.length > 0
+      ? bill.items.map((it) => ({
+        name: it.name ?? "",
+        description: it.description ?? "",
+        quantity: it.quantity ?? 1,
+        unitPrice: it.unitPrice ?? 0,
+        tax: it.tax ?? 0,
+        total: it.total ?? 0,
+      }))
+      : [{ name: "", description: "", quantity: 1, unitPrice: 0, tax: 0, total: 0 }];
+
+  let subsystemId = typeof bill.subsystem === "object" && bill.subsystem ? bill.subsystem._id : (bill.subsystem as string) || "";
+  let usingNewSubsystem = false;
+  let newSubsystemName = "";
+
+  const suggested = bill.aiExtraction?.suggestedSubsystem;
+  const suggestedNew = bill.aiExtraction?.suggestedNewSubsystem;
+
+  if (!subsystemId && suggested && availableSubsystems && availableSubsystems.length > 0) {
+    const match = availableSubsystems.find(
+      (s) => s.name.trim().toLowerCase() === suggested.trim().toLowerCase()
+    );
+    if (match) {
+      subsystemId = match._id;
+    }
+  }
+
+  if (!subsystemId && suggestedNew) {
+    const match = availableSubsystems?.find(
+      (s) => s.name.trim().toLowerCase() === suggestedNew.trim().toLowerCase()
+    );
+    if (match) {
+      subsystemId = match._id;
+    } else {
+      usingNewSubsystem = true;
+      newSubsystemName = suggestedNew;
+    }
+  }
+
   return {
     vendor: bill.vendor ?? "",
     invoiceNumber: bill.invoiceNumber ?? "",
-    billDate: bill.billDate ? bill.billDate.slice(0, 10) : "",
+    billDate: toDateInputValue(bill.billDate),
     description: bill.description ?? "",
-    subtotal: bill.subtotal?.toString() ?? "",
-    tax: bill.tax?.toString() ?? "",
-    discount: bill.discount?.toString() ?? "",
-    additionalCharges: bill.additionalCharges?.toString() ?? "",
+    subtotal: bill.subtotal?.toString() ?? (bill.totalAmount != null ? bill.totalAmount.toString() : ""),
+    tax: bill.tax?.toString() ?? "0",
+    discount: bill.discount?.toString() ?? "0",
+    additionalCharges: bill.additionalCharges?.toString() ?? "0",
     totalAmount: bill.totalAmount?.toString() ?? "",
-    items: bill.items ?? [],
-    subsystemId: typeof bill.subsystem === "object" && bill.subsystem ? bill.subsystem._id : "",
-    newSubsystemName: "",
-    usingNewSubsystem: false,
+    items,
+    subsystemId,
+    newSubsystemName,
+    usingNewSubsystem,
   };
 }
 
@@ -73,6 +137,38 @@ export function AddBill() {
     };
   }, []);
 
+  // Auto-select AI suggested subsystem if available and not yet set
+  useEffect(() => {
+    if (!form || !bill?.aiExtraction || !subsystems.data || subsystems.data.length === 0) return;
+    if (form.subsystemId || form.usingNewSubsystem) return;
+
+    const suggested = bill.aiExtraction.suggestedSubsystem;
+    const suggestedNew = bill.aiExtraction.suggestedNewSubsystem;
+
+    if (suggested) {
+      const match = subsystems.data.find(
+        (s) => s.name.trim().toLowerCase() === suggested.trim().toLowerCase()
+      );
+      if (match) {
+        setForm((prev) => (prev ? { ...prev, subsystemId: match._id } : prev));
+        return;
+      }
+    }
+
+    if (suggestedNew) {
+      const match = subsystems.data.find(
+        (s) => s.name.trim().toLowerCase() === suggestedNew.trim().toLowerCase()
+      );
+      if (match) {
+        setForm((prev) => (prev ? { ...prev, subsystemId: match._id } : prev));
+      } else {
+        setForm((prev) =>
+          prev ? { ...prev, usingNewSubsystem: true, newSubsystemName: suggestedNew } : prev
+        );
+      }
+    }
+  }, [bill?.aiExtraction, subsystems.data, form?.subsystemId, form?.usingNewSubsystem]);
+
   async function pollBill(billId: string, attempt = 0) {
     try {
       const updated = await billsApi.getBill(billId);
@@ -81,7 +177,7 @@ export function AddBill() {
         return;
       }
       setBill(updated);
-      setForm(billToForm(updated));
+      setForm(billToForm(updated, subsystems.data));
       setStep("review");
     } catch (err) {
       toast.push(apiErrorMessage(err), "error");
@@ -113,7 +209,15 @@ export function AddBill() {
     setForm((prev) => {
       if (!prev) return prev;
       const newItems = [...prev.items];
-      newItems[index] = { ...newItems[index], [key]: value };
+      const current = { ...newItems[index], [key]: value };
+      if (key === "quantity" || key === "unitPrice") {
+        const q = key === "quantity" ? Number(value) : Number(current.quantity ?? 1);
+        const p = key === "unitPrice" ? Number(value) : Number(current.unitPrice ?? 0);
+        if (!isNaN(q) && !isNaN(p)) {
+          current.total = Math.round(q * p * 100) / 100;
+        }
+      }
+      newItems[index] = current;
       return { ...prev, items: newItems };
     });
   }
@@ -134,6 +238,10 @@ export function AddBill() {
   function removeItem(index: number) {
     setForm((prev) => {
       if (!prev) return prev;
+      if (prev.items.length <= 1) {
+        toast.push("At least one item is required.", "error");
+        return prev;
+      }
       const newItems = prev.items.filter((_, i) => i !== index);
       return { ...prev, items: newItems };
     });
@@ -141,29 +249,117 @@ export function AddBill() {
 
   async function handleSubmit() {
     if (!bill || !form) return;
-    if (!form.subsystemId && !(form.usingNewSubsystem && form.newSubsystemName.trim())) {
-      toast.push("Please select or suggest a subsystem before submitting.", "error");
+
+    if (!form.vendor.trim()) {
+      toast.push("Vendor is required.", "error");
       return;
     }
-    const totalAmount = form.totalAmount ? Number(form.totalAmount) : null;
-    if (totalAmount == null || Number.isNaN(totalAmount)) {
-      toast.push("Total amount is required before submission.", "error");
+
+    if (!form.invoiceNumber.trim()) {
+      toast.push("Invoice number is required.", "error");
+      return;
+    }
+
+    if (!form.billDate.trim()) {
+      toast.push("Bill date is required.", "error");
+      return;
+    }
+
+    if (!form.totalAmount.trim()) {
+      toast.push("Total amount is required.", "error");
+      return;
+    }
+    const totalAmount = Number(form.totalAmount);
+    if (Number.isNaN(totalAmount) || totalAmount < 0) {
+      toast.push("Please enter a valid total amount.", "error");
+      return;
+    }
+
+    if (!form.description.trim()) {
+      toast.push("Description is required.", "error");
+      return;
+    }
+
+    if (form.items.length === 0) {
+      toast.push("At least one item is required.", "error");
+      return;
+    }
+
+    for (let i = 0; i < form.items.length; i++) {
+      const it = form.items[i];
+      if (!it.name || !it.name.trim()) {
+        toast.push(`Item #${i + 1}: Name is required.`, "error");
+        return;
+      }
+      if (it.quantity == null || Number.isNaN(Number(it.quantity)) || Number(it.quantity) <= 0) {
+        toast.push(`Item #${i + 1}: Quantity must be greater than 0.`, "error");
+        return;
+      }
+      if (it.unitPrice == null || Number.isNaN(Number(it.unitPrice)) || Number(it.unitPrice) < 0) {
+        toast.push(`Item #${i + 1}: Unit price must be 0 or greater.`, "error");
+        return;
+      }
+      if (it.total == null || Number.isNaN(Number(it.total)) || Number(it.total) < 0) {
+        toast.push(`Item #${i + 1}: Total must be 0 or greater.`, "error");
+        return;
+      }
+    }
+
+    if (!form.subtotal.trim()) {
+      toast.push("Subtotal is required.", "error");
+      return;
+    }
+    const subtotal = Number(form.subtotal);
+    if (Number.isNaN(subtotal) || subtotal < 0) {
+      toast.push("Subtotal must be a valid number.", "error");
+      return;
+    }
+
+    if (!form.tax.trim()) {
+      toast.push("Tax is required (enter 0 if no tax).", "error");
+      return;
+    }
+    const tax = Number(form.tax);
+    if (Number.isNaN(tax) || tax < 0) {
+      toast.push("Tax must be a valid number.", "error");
+      return;
+    }
+
+    if (!form.discount.trim()) {
+      toast.push("Discount is required (enter 0 if no discount).", "error");
+      return;
+    }
+    const discount = Number(form.discount);
+    if (Number.isNaN(discount) || discount < 0) {
+      toast.push("Discount must be a valid number.", "error");
+      return;
+    }
+
+    if (!form.subsystemId && !(form.usingNewSubsystem && form.newSubsystemName.trim())) {
+      toast.push("Please select or enter a subsystem.", "error");
       return;
     }
 
     setBusy(true);
     try {
       await billsApi.updateBill(bill._id, {
-        vendor: form.vendor || null,
-        invoiceNumber: form.invoiceNumber || null,
-        billDate: form.billDate || null,
-        description: form.description,
-        subtotal: form.subtotal ? Number(form.subtotal) : null,
-        tax: form.tax ? Number(form.tax) : null,
-        discount: form.discount ? Number(form.discount) : null,
-        additionalCharges: form.additionalCharges ? Number(form.additionalCharges) : null,
+        vendor: form.vendor.trim(),
+        invoiceNumber: form.invoiceNumber.trim(),
+        billDate: form.billDate.trim(),
+        description: form.description.trim(),
+        subtotal,
+        tax,
+        discount,
+        additionalCharges: form.additionalCharges ? Number(form.additionalCharges) : 0,
         totalAmount,
-        items: form.items,
+        items: form.items.map((it) => ({
+          name: it.name.trim(),
+          description: it.description?.trim() || "",
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          tax: Number(it.tax) || 0,
+          total: Number(it.total) || 0,
+        })),
         subsystemId: form.usingNewSubsystem ? null : form.subsystemId || null,
         newSubsystemName: form.usingNewSubsystem ? form.newSubsystemName.trim() || null : null,
       });
@@ -242,12 +438,28 @@ export function AddBill() {
             <p className="text-sm text-ink-500">No file uploaded — manual entry.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {bill.attachments.map((a, i) => (
-                <div key={i} className="flex min-w-0 items-center gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-700">
-                  <FileText className="h-4 w-4 shrink-0 text-ink-300" strokeWidth={2} />
-                  <span className="min-w-0 flex-1 truncate">{a.originalName}</span>
-                </div>
-              ))}
+              {bill.attachments.map((a, i) => {
+                const targetUrl = a.driveUrl || billsApi.getAttachmentUrl(bill._id, i);
+                return (
+                  <a
+                    key={i}
+                    href={targetUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 items-center justify-between gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-700 transition-colors hover:border-accent hover:bg-accent-soft/40"
+                    title={`Click to view ${a.originalName}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <FileText className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} />
+                      <span className="min-w-0 truncate font-medium text-ink-900">{a.originalName}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span className="text-xs text-accent">View</span>
+                      <ExternalLink className="h-3.5 w-3.5 text-ink-400" strokeWidth={2} />
+                    </div>
+                  </a>
+                );
+              })}
             </div>
           )}
         </div>
@@ -283,22 +495,25 @@ export function AddBill() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="field-label">Vendor</label>
-              <input className="field-input" value={form.vendor} onChange={(e) => updateField("vendor", e.target.value)} />
+              <label className="field-label">Vendor <span className="text-status-rejected">*</span></label>
+              <input className="field-input" required value={form.vendor} onChange={(e) => updateField("vendor", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Invoice Number</label>
-              <input className="field-input" value={form.invoiceNumber} onChange={(e) => updateField("invoiceNumber", e.target.value)} />
+              <label className="field-label">Invoice Number <span className="text-status-rejected">*</span></label>
+              <input className="field-input" required value={form.invoiceNumber} onChange={(e) => updateField("invoiceNumber", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Bill Date</label>
-              <input type="date" className="field-input" value={form.billDate} onChange={(e) => updateField("billDate", e.target.value)} />
+              <label className="field-label">Bill Date <span className="text-status-rejected">*</span></label>
+              <input type="date" className="field-input" required value={form.billDate} onChange={(e) => updateField("billDate", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Total Amount (₹)</label>
+              <label className="field-label">Total Amount (₹) <span className="text-status-rejected">*</span></label>
               <input
                 type="number"
+                min="0"
+                step="0.01"
                 className="field-input"
+                required
                 value={form.totalAmount}
                 onChange={(e) => updateField("totalAmount", e.target.value)}
               />
@@ -306,20 +521,20 @@ export function AddBill() {
           </div>
 
           <div>
-            <label className="field-label">Description</label>
-            <textarea className="field-input" rows={2} value={form.description} onChange={(e) => updateField("description", e.target.value)} />
+            <label className="field-label">Description <span className="text-status-rejected">*</span></label>
+            <textarea className="field-input" rows={2} required value={form.description} onChange={(e) => updateField("description", e.target.value)} />
           </div>
 
           <div className="border-t border-line pt-4">
             <div className="mb-3 flex items-center justify-between">
-              <label className="field-label mb-0">Items</label>
+              <label className="field-label mb-0">Items <span className="text-status-rejected">*</span></label>
               <button onClick={addItem} type="button" className="flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-accent-hover">
                 <Plus className="h-4 w-4" /> Add Item
               </button>
             </div>
-            
+
             {form.items.length === 0 ? (
-              <p className="text-sm text-ink-500 italic">No items extracted.</p>
+              <p className="text-sm text-ink-500 italic">No items added. Click "Add Item" above to add an item.</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {form.items.map((item, idx) => (
@@ -327,42 +542,53 @@ export function AddBill() {
                     <div className="flex items-start justify-between gap-2">
                       <input
                         className="field-input text-sm font-medium"
-                        placeholder="Item name"
+                        placeholder="Item name *"
+                        required
                         value={item.name}
                         onChange={(e) => updateItem(idx, "name", e.target.value)}
                       />
-                      <button
-                        onClick={() => removeItem(idx)}
-                        type="button"
-                        className="p-1 text-ink-400 transition-colors hover:text-status-rejected"
-                        title="Remove item"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {form.items.length > 1 && (
+                        <button
+                          onClick={() => removeItem(idx)}
+                          type="button"
+                          className="p-1 text-ink-400 transition-colors hover:text-status-rejected"
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <span className="mb-1 block text-xs text-ink-500">Qty</span>
+                        <span className="mb-1 block text-xs text-ink-500">Qty <span className="text-status-rejected">*</span></span>
                         <input
                           type="number"
+                          min="1"
+                          required
                           className="field-input px-2 py-1 text-sm"
                           value={item.quantity ?? ""}
                           onChange={(e) => updateItem(idx, "quantity", e.target.value ? Number(e.target.value) : null)}
                         />
                       </div>
                       <div>
-                        <span className="mb-1 block text-xs text-ink-500">Price (₹)</span>
+                        <span className="mb-1 block text-xs text-ink-500">Price (₹) <span className="text-status-rejected">*</span></span>
                         <input
                           type="number"
+                          min="0"
+                          step="0.01"
+                          required
                           className="field-input px-2 py-1 text-sm"
                           value={item.unitPrice ?? ""}
                           onChange={(e) => updateItem(idx, "unitPrice", e.target.value ? Number(e.target.value) : null)}
                         />
                       </div>
                       <div>
-                        <span className="mb-1 block text-xs text-ink-500">Total (₹)</span>
+                        <span className="mb-1 block text-xs text-ink-500">Total (₹) <span className="text-status-rejected">*</span></span>
                         <input
                           type="number"
+                          min="0"
+                          step="0.01"
+                          required
                           className="field-input px-2 py-1 text-sm"
                           value={item.total ?? ""}
                           onChange={(e) => updateItem(idx, "total", e.target.value ? Number(e.target.value) : null)}
@@ -377,30 +603,34 @@ export function AddBill() {
 
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div>
-              <label className="field-label">Subtotal</label>
-              <input type="number" className="field-input" value={form.subtotal} onChange={(e) => updateField("subtotal", e.target.value)} />
+              <label className="field-label">Subtotal <span className="text-status-rejected">*</span></label>
+              <input type="number" min="0" step="0.01" required className="field-input" value={form.subtotal} onChange={(e) => updateField("subtotal", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Tax</label>
-              <input type="number" className="field-input" value={form.tax} onChange={(e) => updateField("tax", e.target.value)} />
+              <label className="field-label">Tax <span className="text-status-rejected">*</span></label>
+              <input type="number" min="0" step="0.01" required className="field-input" value={form.tax} onChange={(e) => updateField("tax", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Discount</label>
-              <input type="number" className="field-input" value={form.discount} onChange={(e) => updateField("discount", e.target.value)} />
+              <label className="field-label">Discount <span className="text-status-rejected">*</span></label>
+              <input type="number" min="0" step="0.01" required className="field-input" value={form.discount} onChange={(e) => updateField("discount", e.target.value)} />
             </div>
           </div>
 
           <div className="border-t border-line pt-4">
             <label className="field-label flex flex-wrap items-center gap-1">
-              Subsystem
+              Subsystem <span className="text-status-rejected">*</span>
               {suggested && (
-                <span className="inline-flex items-center gap-1 normal-case text-accent">
+                <span className="inline-flex items-center gap-1 normal-case text-accent font-medium">
                   <Sparkles className="h-3 w-3" strokeWidth={2} /> AI suggested {suggested}
+                  {form.subsystemId && subsystems.data?.find((s) => s._id === form.subsystemId)?.name.toLowerCase() === suggested.toLowerCase() && (
+                    <span className="rounded bg-accent/10 px-1 py-0.2 text-[10px] font-bold text-accent">Auto-selected</span>
+                  )}
                 </span>
               )}
             </label>
             <select
               className="field-input"
+              required
               value={form.usingNewSubsystem ? "__new__" : form.subsystemId}
               onChange={(e) => {
                 if (e.target.value === "__new__") {
@@ -421,7 +651,8 @@ export function AddBill() {
             {form.usingNewSubsystem && (
               <input
                 className="field-input mt-2"
-                placeholder="New subsystem name"
+                required
+                placeholder="New subsystem name *"
                 value={form.newSubsystemName}
                 onChange={(e) => updateField("newSubsystemName", e.target.value)}
               />

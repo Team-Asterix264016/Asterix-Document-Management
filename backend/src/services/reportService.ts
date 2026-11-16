@@ -21,6 +21,10 @@ function monthLabelOf(key: string): string {
   return `${MONTH_LABELS[Number(month) - 1]} ${year}`;
 }
 
+function safeSheetName(name: string): string {
+  return name.replace(/[*?:\\/\[\]]/g, "-").slice(0, 31);
+}
+
 const HEADER_STYLE: Partial<ExcelJS.Style> = {
   font: { bold: true, color: { argb: "FFFFFFFF" } },
   fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } },
@@ -49,7 +53,9 @@ function addBillRows(sheet: ExcelJS.Worksheet, bills: Array<Record<string, unkno
 
   for (const bill of bills) {
     const row = sheet.addRow([
-      bill.billDate ? new Date(bill.billDate as string).toLocaleDateString("en-IN") : "",
+      (bill.billDate || bill.createdAt)
+        ? new Date((bill.billDate || bill.createdAt) as string).toLocaleDateString("en-IN")
+        : "",
       bill.vendor ?? "",
       bill.invoiceNumber ?? "",
       bill.description ?? "",
@@ -87,7 +93,7 @@ export async function generateSubsystemReportBuffer(subsystemId: string) {
 
   const total = bills.reduce((sum, b) => sum + (b.totalAmount ?? 0), 0);
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(subsystem.name.slice(0, 31));
+  const sheet = workbook.addWorksheet(safeSheetName(subsystem.name));
 
   addTitleBlock(sheet, `${subsystem.name} Subsystem Expense Report`, `Generated ${new Date().toLocaleString("en-IN")}`);
   addSummaryBlock(sheet, [
@@ -119,7 +125,7 @@ export async function generateMonthlyReportBuffer(monthKey: string) {
   }
 
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(monthLabelOf(monthKey).slice(0, 31));
+  const sheet = workbook.addWorksheet(safeSheetName(monthLabelOf(monthKey)));
 
   addTitleBlock(sheet, `${monthLabelOf(monthKey)} Expense Report`, `Generated ${new Date().toLocaleString("en-IN")}`);
   addSummaryBlock(sheet, [
@@ -199,7 +205,7 @@ export async function listReports(type?: "SUBSYSTEM" | "MONTHLY") {
 export async function buildBillExportBuffer(title: string, bills: Array<Record<string, unknown>>) {
   const total = bills.reduce((sum, b) => sum + ((b.totalAmount as number) ?? 0), 0);
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(title.slice(0, 31));
+  const sheet = workbook.addWorksheet(safeSheetName(title));
 
   addTitleBlock(sheet, title, `Generated ${new Date().toLocaleString("en-IN")}`);
   addSummaryBlock(sheet, [

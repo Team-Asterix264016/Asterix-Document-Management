@@ -143,27 +143,36 @@ export function BillDetails() {
             <p className="text-sm text-ink-500">No file attached (manual entry).</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {bill.attachments.map((a, i) =>
-                a.driveUrl ? (
+              {bill.attachments.map((a, i) => {
+                const targetUrl = a.driveUrl || billsApi.getAttachmentUrl(bill._id, i);
+                return (
                   <a
                     key={i}
-                    href={a.driveUrl}
+                    href={targetUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex min-w-0 items-center gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-accent transition-colors hover:border-accent/40 hover:bg-accent-soft"
+                    className="flex min-w-0 items-center justify-between gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-700 transition-colors hover:border-accent hover:bg-accent-soft/40"
+                    title={`Click to view or download ${a.originalName}`}
                   >
-                    <FileText className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    <span className="min-w-0 flex-1 truncate">{a.originalName}</span>
-                    <ExternalLink className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <FileText className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} />
+                      <span className="min-w-0 truncate font-medium text-ink-900">{a.originalName}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {a.driveUrl ? (
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-status-approved">
+                          Drive
+                        </span>
+                      ) : (
+                        <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                          View
+                        </span>
+                      )}
+                      <ExternalLink className="h-3.5 w-3.5 text-ink-400" strokeWidth={2} />
+                    </div>
                   </a>
-                ) : (
-                  <div key={i} className="flex min-w-0 items-center gap-2 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-500">
-                    <FileText className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    <span className="min-w-0 flex-1 truncate">{a.originalName}</span>
-                    <span className="shrink-0 text-xs">syncing…</span>
-                  </div>
-                )
-              )}
+                );
+              })}
             </div>
           )}
         </div>
@@ -175,7 +184,7 @@ export function BillDetails() {
             {[
               ["Vendor", bill.vendor ?? "—"],
               ["Invoice Number", bill.invoiceNumber ?? "—"],
-              ["Bill Date", formatDate(bill.billDate)],
+              ["Bill Date", formatDate(bill.billDate || bill.createdAt)],
               ["Submitted By", nameOf(bill.uploadedBy)],
             ].map(([label, value]) => (
               <div key={label} className="flex items-center justify-between gap-4 py-2 first:pt-0">

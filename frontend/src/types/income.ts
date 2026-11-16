@@ -50,6 +50,21 @@ export interface MemberMatrixRow {
   target: number;
   remaining: number;
   progressPercent: number;
+  milestoneTarget?: number;
+  milestoneRemaining?: number;
+  milestoneProgressPercent?: number;
+  milestonePaidCount?: number;
+  milestoneTotalCount?: number;
+  monthlyChitTarget?: number;
+  monthlyChitRemaining?: number;
+  monthlyChitProgressPercent?: number;
+  monthlyChitPaidCount?: number;
+  monthlyChitTotalCount?: number;
+  allTarget?: number;
+  allRemaining?: number;
+  allProgressPercent?: number;
+  allPaidCount?: number;
+  allTotalCount?: number;
   installments: MemberInstallmentStatus[];
 }
 
@@ -63,9 +78,19 @@ export interface InstallmentsMatrixResponse {
     totalCollected: number;
     totalPending: number;
     collectionPercentage: number;
+    milestoneTotalExpected?: number;
+    milestoneTotalCollected?: number;
+    milestoneTotalPending?: number;
+    milestoneCollectionPercentage?: number;
     monthlyChitTotalCollected?: number;
     monthlyChitTotalExpected?: number;
+    monthlyChitTotalPending?: number;
     monthlyChitPlansCount?: number;
+    monthlyChitCollectionPercentage?: number;
+    grandTotalExpected?: number;
+    grandTotalCollected?: number;
+    grandTotalPending?: number;
+    grandCollectionPercentage?: number;
   };
   plans: InstallmentPlan[];
   matrix: MemberMatrixRow[];

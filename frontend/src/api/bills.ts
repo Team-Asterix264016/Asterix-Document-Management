@@ -55,6 +55,12 @@ export async function rejectBill(id: string, reason?: string): Promise<Bill> {
   return res.data.bill;
 }
 
+export function getAttachmentUrl(id: string, index: number): string {
+  const token = localStorage.getItem("asterix_token");
+  const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+  return `${baseUrl}/bills/${id}/attachments/${index}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
+
 export async function deleteBill(id: string): Promise<{ message: string }> {
   const res = await api.delete<{ message: string }>(`/bills/${id}`);
   return res.data;

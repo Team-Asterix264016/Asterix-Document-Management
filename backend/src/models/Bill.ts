@@ -22,6 +22,7 @@ const attachmentSchema = new Schema(
     mimeType: { type: String, required: true },
     sizeBytes: { type: Number, required: true },
     fileHash: { type: String, required: true },
+    localPath: { type: String, default: null },
     driveFileId: { type: String, default: null },
     driveUrl: { type: String, default: null },
     order: { type: Number, default: 0 },

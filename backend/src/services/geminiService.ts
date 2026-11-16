@@ -199,26 +199,49 @@ export async function extractBillData(
     })),
   ];
 
-  const response = await withRetries(() =>
-    withTimeout(
-      (abortSignal) =>
-        ai.models.generateContent({
-          model: getOcrModel(),
-          contents: [{ role: "user", parts }],
-          config: {
-            responseMimeType: "application/json",
-            responseSchema,
-            temperature: 0.1,
-            abortSignal,
-          },
-        }),
-      "Gemini bill extraction"
-    )
-  );
+  const candidateModels = [
+    getOcrModel(),
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
+  ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
-  const text = response.text;
+  let response: any;
+  let lastError: unknown;
+
+  for (const modelName of candidateModels) {
+    try {
+      response = await withRetries(() =>
+        withTimeout(
+          (abortSignal) =>
+            ai.models.generateContent({
+              model: modelName,
+              contents: [{ role: "user", parts }],
+              config: {
+                responseMimeType: "application/json",
+                responseSchema,
+                temperature: 0.1,
+                abortSignal,
+              },
+            }),
+          `Gemini bill extraction (${modelName})`
+        )
+      );
+      if (response?.text) break;
+    } catch (err: any) {
+      lastError = err;
+      const msg = String(err?.message || "").toLowerCase();
+      // If error is model not found, not supported, or 404, fall back to next candidate model
+      if (msg.includes("not found") || msg.includes("not supported") || msg.includes("404")) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  const text = response?.text;
   if (!text) {
-    throw new Error("Gemini returned an empty response");
+    throw (lastError as Error) || new Error("Gemini returned an empty response");
   }
 
   const parsed = JSON.parse(text) as Partial<AiExtractionResult>;

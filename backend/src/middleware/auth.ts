@@ -13,13 +13,19 @@ declare global {
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
+  let token: string | undefined;
   const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) {
+  if (header?.startsWith("Bearer ")) {
+    token = header.slice("Bearer ".length);
+  } else if (typeof req.query.token === "string" && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return next(ApiError.unauthorized("Missing authentication token"));
   }
 
   try {
-    const token = header.slice("Bearer ".length);
     req.user = verifyToken(token);
     next();
   } catch {

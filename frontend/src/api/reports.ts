@@ -22,3 +22,8 @@ export function exportSubsystem(id: string, name: string): Promise<void> {
 export function exportMonth(year: number, month: number): Promise<void> {
   return downloadFile(`/exports/month/${year}/${month}`, `${year}-${String(month).padStart(2, "0")}-report.xlsx`);
 }
+
+export async function regenerateReports(): Promise<{ regenerated: { subsystems: number; months: number } }> {
+  const res = await api.post<{ regenerated: { subsystems: number; months: number } }>("/reports/regenerate");
+  return res.data;
+}

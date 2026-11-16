@@ -62,15 +62,24 @@ export function InstallmentsPage() {
         row.username.toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
 
+      let remaining = row.remaining;
+      if (planCategoryFilter === "MONTHLY_CHIT") {
+        remaining = row.monthlyChitRemaining ?? Math.max(0, (row.monthlyChitTarget ?? 0) - (row.monthlyChitPaid ?? 0));
+      } else if (planCategoryFilter === "SEASON_MILESTONE") {
+        remaining = row.milestoneRemaining ?? row.remaining;
+      } else {
+        remaining = row.allRemaining ?? row.remaining;
+      }
+
       if (filterStatus === "COMPLETED") {
-        return row.remaining === 0;
+        return remaining === 0;
       }
       if (filterStatus === "PENDING") {
-        return row.remaining > 0;
+        return remaining > 0;
       }
       return true;
     });
-  }, [matrix, search, filterStatus]);
+  }, [matrix, search, filterStatus, planCategoryFilter]);
 
   function handleOpenCreateMilestone(type: InstallmentPlanType = "SEASON_MILESTONE") {
     setMilestoneTypeToCreate(type);
@@ -165,34 +174,31 @@ export function InstallmentsPage() {
       <div className="flex flex-wrap items-center gap-2 border-b border-line pb-1">
         <button
           onClick={() => setPlanCategoryFilter("ALL")}
-          className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
-            planCategoryFilter === "ALL"
+          className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${planCategoryFilter === "ALL"
               ? "bg-ink-900 text-white shadow-sm"
               : "bg-surface text-ink-600 hover:bg-surface-hover hover:text-ink-900"
-          }`}
+            }`}
         >
           All Installments ({plans.length})
         </button>
         <button
           onClick={() => setPlanCategoryFilter("SEASON_MILESTONE")}
-          className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
-            planCategoryFilter === "SEASON_MILESTONE"
+          className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${planCategoryFilter === "SEASON_MILESTONE"
               ? "bg-accent text-white shadow-sm"
               : "bg-surface text-ink-600 hover:bg-surface-hover hover:text-ink-900"
-          }`}
+            }`}
         >
           <Layers className="h-3.5 w-3.5" />
           Seasonal Milestones ({plans.filter((p) => (p.planType || "SEASON_MILESTONE") === "SEASON_MILESTONE").length})
         </button>
         <button
           onClick={() => setPlanCategoryFilter("MONTHLY_CHIT")}
-          className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
-            planCategoryFilter === "MONTHLY_CHIT"
+          className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${planCategoryFilter === "MONTHLY_CHIT"
               ? "bg-purple-600 text-white shadow-sm"
               : "bg-surface text-ink-600 hover:bg-surface-hover hover:text-ink-900"
-          }`}
+            }`}
         >
-          <CalendarRange className="h-3.5 w-3.5 text-purple-600" />
+          <CalendarRange className={`h-3.5 w-3.5 ${planCategoryFilter === "MONTHLY_CHIT" ? "text-white" : "text-purple-600"}`} />
           Monthly / Recurring Dues ({plans.filter((p) => p.planType === "MONTHLY_CHIT").length})
         </button>
       </div>
@@ -235,9 +241,9 @@ export function InstallmentsPage() {
               <div className="flex items-center justify-between text-xs font-bold">
                 <span className="text-ink-700">Recurring Collection Rate</span>
                 <span className="text-purple-700">
-                  {config?.monthlyChitTotalExpected && config.monthlyChitTotalExpected > 0
+                  {config?.monthlyChitCollectionPercentage ?? (config?.monthlyChitTotalExpected && config.monthlyChitTotalExpected > 0
                     ? Math.round(((config.monthlyChitTotalCollected ?? 0) / config.monthlyChitTotalExpected) * 100)
-                    : 100}
+                    : 100)}
                   %
                 </span>
               </div>
@@ -245,11 +251,10 @@ export function InstallmentsPage() {
                 <div
                   className="h-full rounded-full bg-purple-600 transition-all duration-300"
                   style={{
-                    width: `${
-                      config?.monthlyChitTotalExpected && config.monthlyChitTotalExpected > 0
+                    width: `${config?.monthlyChitCollectionPercentage ?? (config?.monthlyChitTotalExpected && config.monthlyChitTotalExpected > 0
                         ? Math.min(100, Math.round(((config.monthlyChitTotalCollected ?? 0) / config.monthlyChitTotalExpected) * 100))
-                        : 0
-                    }%`,
+                        : 0)
+                      }%`,
                   }}
                 />
               </div>
@@ -263,7 +268,9 @@ export function InstallmentsPage() {
             {/* Target setting card */}
             <div className="md:border-r md:border-line md:pr-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink-500">Per-Member Build Target</span>
+                <span className="text-xs font-semibold text-ink-500">
+                  {planCategoryFilter === "ALL" ? "Combined Target / Member" : "Per-Member Build Target"}
+                </span>
                 <button
                   onClick={() => setIsTargetModalOpen(true)}
                   className="text-[11px] font-bold text-accent hover:underline"
@@ -272,49 +279,83 @@ export function InstallmentsPage() {
                 </button>
               </div>
               <p className="mt-1 text-2xl font-extrabold text-ink-900">
-                ₹{(config?.targetPerMember ?? 10000).toLocaleString("en-IN")}
+                ₹{(planCategoryFilter === "ALL"
+                  ? (config?.targetPerMember ?? 10000) + Math.round((config?.monthlyChitTotalExpected ?? 0) / (config?.totalMembers || 1))
+                  : (config?.targetPerMember ?? 10000)
+                ).toLocaleString("en-IN")}
               </p>
               <p className="mt-1 text-[11px] text-ink-500">
-                Season car build commitment per member
+                {planCategoryFilter === "ALL"
+                  ? `₹${(config?.targetPerMember ?? 10000).toLocaleString("en-IN")} build + ₹${Math.round((config?.monthlyChitTotalExpected ?? 0) / (config?.totalMembers || 1)).toLocaleString("en-IN")} chit`
+                  : "Season car build commitment per member"}
               </p>
             </div>
 
             {/* Overall team collection */}
             <div className="md:border-r md:border-line md:pr-4">
-              <span className="text-xs font-semibold text-ink-500">Team Total Collected</span>
+              <span className="text-xs font-semibold text-ink-500">
+                {planCategoryFilter === "ALL" ? "Combined Total Collected" : "Team Total Collected"}
+              </span>
               <p className="mt-1 text-2xl font-extrabold text-status-approved">
-                ₹{(config?.totalCollected ?? 0).toLocaleString("en-IN")}
+                ₹{(planCategoryFilter === "ALL"
+                  ? (config?.grandTotalCollected ?? config?.totalCollected ?? 0)
+                  : (config?.milestoneTotalCollected ?? config?.totalCollected ?? 0)
+                ).toLocaleString("en-IN")}
               </p>
               <p className="mt-1 text-[11px] text-ink-500">
-                Goal: ₹{(config?.totalExpected ?? 0).toLocaleString("en-IN")} ({config?.totalMembers ?? 0} members)
+                Goal: ₹{(planCategoryFilter === "ALL"
+                  ? (config?.grandTotalExpected ?? config?.totalExpected ?? 0)
+                  : (config?.totalExpected ?? 0)
+                ).toLocaleString("en-IN")} ({config?.totalMembers ?? 0} members)
               </p>
             </div>
 
             {/* Total Pending */}
             <div className="md:border-r md:border-line md:pr-4">
-              <span className="text-xs font-semibold text-ink-500">Total Pending Dues</span>
+              <span className="text-xs font-semibold text-ink-500">
+                {planCategoryFilter === "ALL" ? "Combined Pending Dues" : "Total Pending Dues"}
+              </span>
               <p className="mt-1 text-2xl font-extrabold text-amber-600">
-                ₹{(config?.totalPending ?? 0).toLocaleString("en-IN")}
+                ₹{(planCategoryFilter === "ALL"
+                  ? (config?.grandTotalPending ?? config?.totalPending ?? 0)
+                  : (config?.milestoneTotalPending ?? config?.totalPending ?? 0)
+                ).toLocaleString("en-IN")}
               </p>
               <p className="mt-1 text-[11px] text-ink-500">
-                Awaiting collection across milestones
+                {planCategoryFilter === "ALL" ? "Across milestones & recurring chit dues" : "Awaiting collection across milestones"}
               </p>
             </div>
 
             {/* Progress ring / bar */}
             <div className="flex flex-col justify-center">
               <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-ink-700">Team Collection Progress</span>
-                <span className="text-accent">{config?.collectionPercentage ?? 0}%</span>
+                <span className="text-ink-700">
+                  {planCategoryFilter === "ALL" ? "Combined Progress" : "Team Collection Progress"}
+                </span>
+                <span className="text-accent">
+                  {planCategoryFilter === "ALL"
+                    ? (config?.grandCollectionPercentage ?? config?.collectionPercentage ?? 0)
+                    : (config?.milestoneCollectionPercentage ?? config?.collectionPercentage ?? 0)}
+                  %
+                </span>
               </div>
               <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-line">
                 <div
                   className="h-full rounded-full bg-accent transition-all duration-300"
-                  style={{ width: `${Math.min(100, config?.collectionPercentage ?? 0)}%` }}
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      planCategoryFilter === "ALL"
+                        ? (config?.grandCollectionPercentage ?? config?.collectionPercentage ?? 0)
+                        : (config?.milestoneCollectionPercentage ?? config?.collectionPercentage ?? 0)
+                    )}%`,
+                  }}
                 />
               </div>
               <p className="mt-1.5 text-[10px] text-ink-400">
-                {config?.collectionPercentage ?? 0}% of overall target secured
+                {planCategoryFilter === "ALL"
+                  ? `${config?.grandCollectionPercentage ?? config?.collectionPercentage ?? 0}% of combined season target secured`
+                  : `${config?.milestoneCollectionPercentage ?? config?.collectionPercentage ?? 0}% of build target secured`}
               </p>
             </div>
           </div>
@@ -329,8 +370,8 @@ export function InstallmentsPage() {
               {planCategoryFilter === "MONTHLY_CHIT"
                 ? "Monthly Chit Fund Schedules"
                 : planCategoryFilter === "SEASON_MILESTONE"
-                ? "Seasonal Build Milestones"
-                : "Active Installment Plans"}
+                  ? "Seasonal Build Milestones"
+                  : "Active Installment Plans"}
             </h2>
             <p className="text-xs text-ink-500">
               {planCategoryFilter === "MONTHLY_CHIT"
@@ -372,9 +413,8 @@ export function InstallmentsPage() {
                       <p className="text-[11px] text-ink-500 line-clamp-1">{plan.description || "General installment"}</p>
                     </div>
                     <span
-                      className={`rounded px-2 py-0.5 text-xs font-extrabold ${
-                        isChit ? "bg-purple-100 text-purple-800" : "bg-accent-soft text-accent"
-                      }`}
+                      className={`rounded px-2 py-0.5 text-xs font-extrabold ${isChit ? "bg-purple-100 text-purple-800" : "bg-accent-soft text-accent"
+                        }`}
                     >
                       ₹{plan.amount.toLocaleString("en-IN")}
                     </span>
@@ -401,9 +441,8 @@ export function InstallmentsPage() {
                     </div>
                     <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          isChit ? "bg-purple-600" : "bg-accent"
-                        }`}
+                        className={`h-full rounded-full transition-all duration-300 ${isChit ? "bg-purple-600" : "bg-accent"
+                          }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -463,33 +502,42 @@ export function InstallmentsPage() {
             <div className="flex items-center rounded-md border border-line bg-canvas p-0.5 text-xs font-semibold">
               <button
                 onClick={() => setFilterStatus("ALL")}
-                className={`rounded px-2.5 py-1 ${
-                  filterStatus === "ALL"
+                className={`rounded px-2.5 py-1 ${filterStatus === "ALL"
                     ? "bg-surface text-ink-900 shadow-xs"
                     : "text-ink-500 hover:text-ink-900"
-                }`}
+                  }`}
               >
                 All ({matrix.length})
               </button>
               <button
                 onClick={() => setFilterStatus("COMPLETED")}
-                className={`rounded px-2.5 py-1 ${
-                  filterStatus === "COMPLETED"
+                className={`rounded px-2.5 py-1 ${filterStatus === "COMPLETED"
                     ? "bg-surface text-status-approved shadow-xs"
                     : "text-ink-500 hover:text-ink-900"
-                }`}
+                  }`}
               >
-                Fully Paid
+                Fully Paid ({
+                  matrix.filter((r) => {
+                    if (planCategoryFilter === "MONTHLY_CHIT") return (r.monthlyChitRemaining ?? 0) === 0;
+                    if (planCategoryFilter === "SEASON_MILESTONE") return (r.milestoneRemaining ?? r.remaining) === 0;
+                    return (r.allRemaining ?? r.remaining) === 0;
+                  }).length
+                })
               </button>
               <button
                 onClick={() => setFilterStatus("PENDING")}
-                className={`rounded px-2.5 py-1 ${
-                  filterStatus === "PENDING"
+                className={`rounded px-2.5 py-1 ${filterStatus === "PENDING"
                     ? "bg-surface text-amber-700 shadow-xs"
                     : "text-ink-500 hover:text-ink-900"
-                }`}
+                  }`}
               >
-                Pending Dues
+                Pending Dues ({
+                  matrix.filter((r) => {
+                    if (planCategoryFilter === "MONTHLY_CHIT") return (r.monthlyChitRemaining ?? 0) > 0;
+                    if (planCategoryFilter === "SEASON_MILESTONE") return (r.milestoneRemaining ?? r.remaining) > 0;
+                    return (r.allRemaining ?? r.remaining) > 0;
+                  }).length
+                })
               </button>
             </div>
           </div>
@@ -501,9 +549,23 @@ export function InstallmentsPage() {
               <thead className="border-b border-line bg-canvas text-[11px] font-semibold text-ink-500">
                 <tr>
                   <th className="py-2.5 pl-3">Team Member</th>
-                  <th className="py-2.5">Progress vs Target</th>
-                  <th className="py-2.5">Total Paid</th>
-                  <th className="py-2.5">Remaining</th>
+                  <th className="py-2.5">
+                    {planCategoryFilter === "MONTHLY_CHIT"
+                      ? "Chit Progress"
+                      : planCategoryFilter === "SEASON_MILESTONE"
+                        ? "Milestone Progress"
+                        : "Progress vs Target"}
+                  </th>
+                  <th className="py-2.5">
+                    {planCategoryFilter === "MONTHLY_CHIT"
+                      ? "Chit Paid"
+                      : planCategoryFilter === "SEASON_MILESTONE"
+                        ? "Milestones Paid"
+                        : "Total Paid"}
+                  </th>
+                  <th className="py-2.5">
+                    {planCategoryFilter === "MONTHLY_CHIT" ? "Chit Remaining" : "Remaining"}
+                  </th>
                   {displayedPlans.map((p) => {
                     const isChit = p.planType === "MONTHLY_CHIT";
                     return (
@@ -531,14 +593,50 @@ export function InstallmentsPage() {
               </thead>
               <tbody className="divide-y divide-line">
                 {filteredMatrix.map((row) => {
-                  const isFullyPaid = row.remaining === 0;
+                  const isChitView = planCategoryFilter === "MONTHLY_CHIT";
+                  const isMilestoneView = planCategoryFilter === "SEASON_MILESTONE";
+
+                  let progressPct = row.progressPercent;
+                  let paidAmount = row.totalPaid;
+                  let remainingAmount = row.remaining;
+                  let targetAmount = row.target;
+                  let countText = "";
+
+                  if (isChitView) {
+                    progressPct = row.monthlyChitProgressPercent ?? 0;
+                    paidAmount = row.monthlyChitPaid ?? 0;
+                    remainingAmount = row.monthlyChitRemaining ?? 0;
+                    targetAmount = row.monthlyChitTarget ?? 0;
+                    const paidCount = row.monthlyChitPaidCount ?? 0;
+                    const totalCount = row.monthlyChitTotalCount ?? displayedPlans.length;
+                    countText = `${paidCount} of ${totalCount} dues paid`;
+                  } else if (isMilestoneView) {
+                    progressPct = row.milestoneProgressPercent ?? row.progressPercent;
+                    paidAmount = row.milestonePaid ?? row.totalPaid;
+                    remainingAmount = row.milestoneRemaining ?? row.remaining;
+                    targetAmount = row.milestoneTarget ?? row.target;
+                    const paidCount = row.milestonePaidCount ?? 0;
+                    const totalCount = row.milestoneTotalCount ?? displayedPlans.length;
+                    countText = `${paidCount} of ${totalCount} milestones paid`;
+                  } else {
+                    progressPct = row.allProgressPercent ?? row.progressPercent;
+                    paidAmount = row.totalPaid;
+                    remainingAmount = row.allRemaining ?? row.remaining;
+                    targetAmount = row.allTarget ?? row.target;
+                    const paidCount = row.allPaidCount ?? ((row.milestonePaidCount ?? 0) + (row.monthlyChitPaidCount ?? 0));
+                    const totalCount = row.allTotalCount ?? ((row.milestoneTotalCount ?? 0) + (row.monthlyChitTotalCount ?? 0));
+                    countText = `${paidCount} of ${totalCount} dues paid`;
+                  }
+
+                  const isFullyPaid = remainingAmount === 0;
 
                   return (
                     <tr key={row.memberId} className="hover:bg-surface-hover transition-colors">
                       {/* Member Info */}
                       <td className="py-3 pl-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                          <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${isChitView ? "bg-purple-100 text-purple-700" : "bg-accent-soft text-accent"
+                            }`}>
                             {row.displayName.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -549,43 +647,74 @@ export function InstallmentsPage() {
                       </td>
 
                       {/* Progress Bar */}
-                      <td className="py-3 min-w-[130px]">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${
-                                isFullyPaid ? "bg-status-approved" : "bg-accent"
-                              }`}
-                              style={{ width: `${row.progressPercent}%` }}
-                            />
+                      <td className="py-3 min-w-[150px]">
+                        <div className="flex flex-col gap-1 pr-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-line">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${isFullyPaid
+                                    ? "bg-status-approved"
+                                    : isChitView
+                                      ? "bg-purple-600"
+                                      : "bg-accent"
+                                  }`}
+                                style={{ width: `${progressPct}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] font-bold text-ink-700 w-9 text-right">
+                              {progressPct}%
+                            </span>
                           </div>
-                          <span className="text-[10px] font-bold text-ink-600">
-                            {row.progressPercent}%
-                          </span>
+                          <div className="flex items-center justify-between text-[10px] text-ink-400">
+                            <span>{countText}</span>
+                            {targetAmount > 0 && (
+                              <span className="font-mono">
+                                ₹{paidAmount.toLocaleString("en-IN")}/₹{targetAmount.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
                       {/* Total Paid */}
                       <td className="py-3 font-bold text-ink-900">
-                        {planCategoryFilter === "MONTHLY_CHIT"
-                          ? `₹${(row.monthlyChitPaid ?? 0).toLocaleString("en-IN")}`
-                          : `₹${row.totalPaid.toLocaleString("en-IN")}`}
+                        <div>
+                          <span>₹{paidAmount.toLocaleString("en-IN")}</span>
+                          {isChitView && (
+                            <span className="block text-[10px] font-normal text-purple-700">
+                              Chit Pool
+                            </span>
+                          )}
+                          {isMilestoneView && (
+                            <span className="block text-[10px] font-normal text-ink-400">
+                              Build Fund
+                            </span>
+                          )}
+                          {!isChitView && !isMilestoneView && (row.monthlyChitPaid ?? 0) > 0 && (row.milestonePaid ?? 0) > 0 && (
+                            <span className="block text-[10px] font-normal text-ink-400">
+                              ₹{(row.milestonePaid ?? 0).toLocaleString("en-IN")} build · ₹{(row.monthlyChitPaid ?? 0).toLocaleString("en-IN")} chit
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Remaining */}
                       <td className="py-3">
-                        {planCategoryFilter === "MONTHLY_CHIT" ? (
-                          <span className="text-xs font-semibold text-purple-700">
-                            Chit Pool
-                          </span>
-                        ) : isFullyPaid ? (
-                          <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-status-approved">
-                            ✓ Fully Settled
+                        {isFullyPaid ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-status-approved">
+                            <CheckCircle2 className="h-3 w-3" /> {isChitView ? "Up to Date" : "Fully Settled"}
                           </span>
                         ) : (
-                          <span className="font-semibold text-amber-600">
-                            ₹{row.remaining.toLocaleString("en-IN")}
-                          </span>
+                          <div>
+                            <span className={`font-semibold ${isChitView ? "text-purple-700" : "text-amber-600"}`}>
+                              ₹{remainingAmount.toLocaleString("en-IN")}
+                            </span>
+                            {targetAmount > 0 && (
+                              <span className="block text-[10px] text-ink-400">
+                                due of ₹{targetAmount.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
 

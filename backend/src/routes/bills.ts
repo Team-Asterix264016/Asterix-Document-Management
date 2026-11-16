@@ -18,6 +18,7 @@ router.use(requireAuth);
 router.get("/", validateQuery(billQuerySchema), billController.listBills);
 router.post("/", validateBody(createDraftBillSchema), billController.createDraft);
 router.get("/:id", billController.getBill);
+router.get("/:id/attachments/:index", billController.getAttachment);
 router.put("/:id", validateBody(updateBillSchema), billController.updateBill);
 router.delete("/:id", billController.deleteBill);
 router.post("/:id/attachments", upload.array("files", 10), billController.uploadAttachments);

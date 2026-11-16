@@ -48,8 +48,14 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
       setInvoiceNumber(bill.invoiceNumber || "");
       setBillDate(bill.billDate ? bill.billDate.split("T")[0] : "");
 
-      const currentSubsystemId =
+      let currentSubsystemId =
         typeof bill.subsystem === "object" && bill.subsystem ? bill.subsystem._id : (bill.subsystem as string) || "";
+      if (!currentSubsystemId && bill.aiExtraction?.suggestedSubsystem && subsystems.length > 0) {
+        const match = subsystems.find(
+          (s) => s.name.trim().toLowerCase() === bill.aiExtraction!.suggestedSubsystem!.trim().toLowerCase()
+        );
+        if (match) currentSubsystemId = match._id;
+      }
       setSubsystemId(currentSubsystemId);
 
       setDescription(bill.description || "");
@@ -130,8 +136,33 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
       const parsedDiscount = discount === "" ? null : Number(discount);
       const parsedTotal = totalAmount === "" ? null : Number(totalAmount);
 
-      if (parsedTotal !== null && (isNaN(parsedTotal) || parsedTotal < 0)) {
-        setError("Total amount must be a positive number");
+      if (!vendor.trim()) {
+        setError("Vendor name is required");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!invoiceNumber.trim()) {
+        setError("Invoice number is required");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!billDate.trim()) {
+        setError("Bill date is required");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!subsystemId) {
+        setError("Subsystem is required");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!description.trim()) {
+        setError("Description is required");
+        setIsSubmitting(false);
+        return;
+      }
+      if (parsedTotal === null || isNaN(parsedTotal) || parsedTotal < 0) {
+        setError("Total amount must be a valid positive number");
         setIsSubmitting(false);
         return;
       }
@@ -218,11 +249,12 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="bill-vendor" className="field-label">
-                Vendor Name
+                Vendor Name <span className="text-status-rejected">*</span>
               </label>
               <input
                 id="bill-vendor"
                 type="text"
+                required
                 value={vendor}
                 onChange={(e) => setVendor(e.target.value)}
                 placeholder="e.g., McMaster-Carr, Local Hardware"
@@ -232,11 +264,12 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
 
             <div>
               <label htmlFor="bill-invoice" className="field-label">
-                Invoice Number
+                Invoice Number <span className="text-status-rejected">*</span>
               </label>
               <input
                 id="bill-invoice"
                 type="text"
+                required
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
                 placeholder="e.g., INV-2024-001"
@@ -248,11 +281,12 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="bill-date" className="field-label">
-                Bill Date
+                Bill Date <span className="text-status-rejected">*</span>
               </label>
               <input
                 id="bill-date"
                 type="date"
+                required
                 value={billDate}
                 onChange={(e) => setBillDate(e.target.value)}
                 className="field-input mt-1"
@@ -261,10 +295,11 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
 
             <div>
               <label htmlFor="bill-subsystem" className="field-label">
-                Subsystem
+                Subsystem <span className="text-status-rejected">*</span>
               </label>
               <select
                 id="bill-subsystem"
+                required
                 value={subsystemId}
                 onChange={(e) => setSubsystemId(e.target.value)}
                 className="field-input mt-1"
@@ -300,11 +335,12 @@ export function EditBillModal({ isOpen, bill, onClose, onSuccess }: EditBillModa
 
           <div>
             <label htmlFor="bill-description" className="field-label">
-              Description / Notes
+              Description / Notes <span className="text-status-rejected">*</span>
             </label>
             <textarea
               id="bill-description"
               rows={2}
+              required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Context or notes about this purchase..."

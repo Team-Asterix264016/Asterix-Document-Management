@@ -1,4 +1,6 @@
 import type { Request, Response } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import * as billService from "../services/billService.js";
@@ -71,4 +73,36 @@ export const approveBill = asyncHandler(async (req: Request, res: Response) => {
 export const rejectBill = asyncHandler(async (req: Request, res: Response) => {
   const bill = await billService.rejectBill(req.params.id, req.user!.sub, req.body.reason);
   res.json({ bill });
+});
+
+export const getAttachment = asyncHandler(async (req: Request, res: Response) => {
+  const bill = await billService.getBillOrThrow(req.params.id);
+  billService.assertCanViewBill(bill, { userId: req.user!.sub, role: req.user!.role });
+
+  const index = parseInt(req.params.index, 10);
+  if (isNaN(index) || index < 0 || index >= bill.attachments.length) {
+    throw ApiError.notFound("Attachment not found");
+  }
+
+  const attachment = bill.attachments[index] as {
+    originalName: string;
+    mimeType: string;
+    localPath?: string | null;
+    driveUrl?: string | null;
+  };
+
+  if (attachment.localPath && fs.existsSync(attachment.localPath)) {
+    res.setHeader("Content-Type", attachment.mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(attachment.originalName)}"`
+    );
+    return res.sendFile(path.resolve(attachment.localPath));
+  }
+
+  if (attachment.driveUrl) {
+    return res.redirect(attachment.driveUrl);
+  }
+
+  throw ApiError.notFound("Attachment file is not available on server or Drive");
 });

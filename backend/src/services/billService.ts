@@ -1,9 +1,12 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { Bill, type BillStatus } from "../models/Bill.js";
 import { Subsystem, SUBSYSTEM_NAME_COLLATION } from "../models/Subsystem.js";
 import { Vendor, normalizeVendorName } from "../models/Vendor.js";
 import { ApiError } from "../utils/ApiError.js";
-import { extractBillData } from "./geminiService.js";
+import { extractBillData, type AiExtractionResult } from "./geminiService.js";
+import { extractBillDataWithOcr } from "./ocrFallbackService.js";
 import {
   getPendingEvidenceFolder,
   getApprovedFolderForSubsystem,
@@ -46,6 +49,27 @@ async function findOrCreateSubsystem(rawName: string) {
   }
 }
 
+export function parseDateSafely(val: unknown): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val !== "string") return null;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+  if (ddmmyyyy) {
+    const day = parseInt(ddmmyyyy[1], 10);
+    const month = parseInt(ddmmyyyy[2], 10) - 1;
+    const year = parseInt(ddmmyyyy[3], 10);
+    const d = new Date(Date.UTC(year, month, day));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export async function createDraftBill(userId: string, data: { vendor?: string | null; invoiceNumber?: string | null; billDate?: string | null; description?: string | null }) {
   const bill = await Bill.create({
     uploadedBy: userId,
@@ -53,7 +77,7 @@ export async function createDraftBill(userId: string, data: { vendor?: string | 
     vendor: data.vendor ?? null,
     vendorNormalized: data.vendor ? normalizeVendorName(data.vendor) : null,
     invoiceNumber: data.invoiceNumber ?? null,
-    billDate: data.billDate ? new Date(data.billDate) : null,
+    billDate: parseDateSafely(data.billDate),
     description: data.description ?? "",
   });
   return bill;
@@ -81,11 +105,20 @@ export async function attachFilesAndProcess(
 
   const pendingFolderId = await tryGetPendingFolder();
 
+  const uploadDir = path.resolve(process.cwd(), "uploads", "bills", billId);
+  await fs.promises.mkdir(uploadDir, { recursive: true });
+
   const attachments = [];
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const hash = crypto.createHash("sha256").update(file.buffer).digest("hex");
     const ext = extensionFromMime(file.mimetype);
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const localFileName = `${i}_${hash.slice(0, 8)}_${safeName}`;
+    const localFilePath = path.join(uploadDir, localFileName);
+
+    await fs.promises.writeFile(localFilePath, file.buffer);
+
     const filename = buildBillFilename({
       billDate: bill.billDate ?? null,
       vendor: bill.vendor ?? null,
@@ -98,9 +131,13 @@ export async function attachFilesAndProcess(
     let driveFileId: string | null = null;
     let driveUrl: string | null = null;
     if (pendingFolderId) {
-      const uploaded = await uploadFile({ name: filename, mimeType: file.mimetype, buffer: file.buffer, parentId: pendingFolderId });
-      driveFileId = uploaded.fileId;
-      driveUrl = uploaded.webViewLink;
+      try {
+        const uploaded = await uploadFile({ name: filename, mimeType: file.mimetype, buffer: file.buffer, parentId: pendingFolderId });
+        driveFileId = uploaded.fileId;
+        driveUrl = uploaded.webViewLink;
+      } catch (err) {
+        console.error("Drive upload failed for file:", (err as Error).message);
+      }
     }
 
     attachments.push({
@@ -108,6 +145,7 @@ export async function attachFilesAndProcess(
       mimeType: file.mimetype,
       sizeBytes: file.buffer.length,
       fileHash: hash,
+      localPath: localFilePath,
       driveFileId,
       driveUrl,
       order: i,
@@ -156,57 +194,91 @@ async function runAiExtraction(billId: string, files: Array<{ buffer: Buffer; mi
   let fields: Record<string, unknown> = {};
   let aiExtraction: Record<string, unknown>;
 
-  try {
-    const result = await extractBillData(files, subsystemNames);
-    const billDate = result.billDate ? new Date(result.billDate) : null;
+  let usedFallback = false;
+  let result: AiExtractionResult;
 
-    fields = {
+  try {
+    result = await extractBillData(files, subsystemNames);
+  } catch (geminiErr) {
+    console.warn("Gemini AI extraction failed, falling back to Local OCR:", (geminiErr as Error).message);
+    try {
+      result = await extractBillDataWithOcr(files, subsystemNames);
+      usedFallback = true;
+    } catch (ocrErr) {
+      console.error("Local OCR fallback also failed:", (ocrErr as Error).message);
+      aiExtraction = {
+        processed: false,
+        confidence: {},
+        suggestedSubsystem: null,
+        suggestedNewSubsystem: null,
+        warnings: [],
+        processedAt: new Date(),
+        error: `Gemini: ${(geminiErr as Error).message}. Local OCR: ${(ocrErr as Error).message}`,
+      };
+
+      // Record diagnostic failure without touching user values
+      const appliedFail = await Bill.updateOne(
+        { _id: bill._id, status: { $in: ["DRAFT", "PROCESSING"] }, userEdited: { $ne: true } },
+        { $set: { aiExtraction, status: "DRAFT" } }
+      );
+      if (appliedFail.matchedCount === 0) {
+        await Bill.updateOne({ _id: bill._id }, { $set: { aiExtraction } });
+      }
+      return;
+    }
+  }
+
+  const billDate = parseDateSafely(result.billDate);
+
+  let suggestedSubsystemId: Types.ObjectId | null = null;
+  if (result.suggestedSubsystem) {
+    const match = subsystems.find(
+      (s) => s.name.trim().toLowerCase() === result.suggestedSubsystem!.trim().toLowerCase()
+    );
+    if (match) {
+      suggestedSubsystemId = match._id as Types.ObjectId;
+    }
+  }
+
+  fields = {
+    vendor: result.vendor,
+    vendorNormalized: result.vendor ? normalizeVendorName(result.vendor) : null,
+    invoiceNumber: result.invoiceNumber,
+    billDate,
+    description: result.description ?? "",
+    currency: result.currency,
+    subtotal: result.subtotal,
+    tax: result.tax,
+    discount: result.discount,
+    additionalCharges: result.additionalCharges,
+    totalAmount: result.totalAmount,
+    items: result.items,
+    ...(suggestedSubsystemId ? { subsystem: suggestedSubsystemId } : {}),
+  };
+
+  aiExtraction = {
+    processed: true,
+    confidence: result.confidence,
+    suggestedSubsystem: result.suggestedSubsystem,
+    suggestedNewSubsystem: result.suggestedNewSubsystem,
+    warnings: usedFallback
+      ? [...(result.warnings || []), "Extracted using Local OCR fallback. Please verify detected values before submitting."]
+      : result.warnings,
+    processedAt: new Date(),
+    error: null,
+  };
+
+  if (result.vendor && result.totalAmount != null) {
+    const matches = await findPossibleDuplicates({
+      _id: bill._id as Types.ObjectId,
       vendor: result.vendor,
-      vendorNormalized: result.vendor ? normalizeVendorName(result.vendor) : null,
       invoiceNumber: result.invoiceNumber,
       billDate,
-      description: result.description ?? "",
-      currency: result.currency,
-      subtotal: result.subtotal,
-      tax: result.tax,
-      discount: result.discount,
-      additionalCharges: result.additionalCharges,
       totalAmount: result.totalAmount,
-      items: result.items,
-    };
-
-    aiExtraction = {
-      processed: true,
-      confidence: result.confidence,
-      suggestedSubsystem: result.suggestedSubsystem,
-      suggestedNewSubsystem: result.suggestedNewSubsystem,
-      warnings: result.warnings,
-      processedAt: new Date(),
-      error: null,
-    };
-
-    if (result.vendor && result.totalAmount != null) {
-      const matches = await findPossibleDuplicates({
-        _id: bill._id as Types.ObjectId,
-        vendor: result.vendor,
-        invoiceNumber: result.invoiceNumber,
-        billDate,
-        totalAmount: result.totalAmount,
-      });
-      fields.duplicateCheck = {
-        possibleDuplicate: matches.length > 0,
-        matches: matches.map((m) => ({ billId: m.billId, reason: m.reason })),
-      };
-    }
-  } catch (err) {
-    aiExtraction = {
-      processed: false,
-      confidence: {},
-      suggestedSubsystem: null,
-      suggestedNewSubsystem: null,
-      warnings: [],
-      processedAt: new Date(),
-      error: (err as Error).message || "AI processing failed",
+    });
+    fields.duplicateCheck = {
+      possibleDuplicate: matches.length > 0,
+      matches: matches.map((m) => ({ billId: m.billId, reason: m.reason })),
     };
   }
 
@@ -252,7 +324,7 @@ export async function updateBill(billId: string, data: Record<string, unknown>, 
     bill.vendorNormalized = patch.vendor ? normalizeVendorName(patch.vendor) : null;
   }
   if (patch.invoiceNumber !== undefined) bill.invoiceNumber = patch.invoiceNumber;
-  if (patch.billDate !== undefined) bill.billDate = patch.billDate ? new Date(patch.billDate) : null;
+  if (patch.billDate !== undefined) bill.billDate = parseDateSafely(patch.billDate);
   if (patch.description !== undefined) bill.description = patch.description ?? "";
   if (patch.currency !== undefined) bill.currency = patch.currency;
   if (patch.subtotal !== undefined) bill.subtotal = patch.subtotal;
@@ -295,6 +367,9 @@ export async function deleteBill(billId: string) {
       }
     }
   }
+  const uploadDir = path.resolve(process.cwd(), "uploads", "bills", billId);
+  await fs.promises.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
+
   await Bill.findByIdAndDelete(billId);
 }
 

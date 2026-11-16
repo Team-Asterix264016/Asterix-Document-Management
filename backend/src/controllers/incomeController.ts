@@ -293,21 +293,32 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
     paymentMap.set(`${String(p.installment)}_${String(p.member)}`, p);
   });
 
+  const monthlyChitPlans = plans.filter((p) => p.planType === "MONTHLY_CHIT");
+  const seasonMilestonePlans = plans.filter((p) => (p.planType || "SEASON_MILESTONE") === "SEASON_MILESTONE");
+  const monthlyChitPlansCount = monthlyChitPlans.length;
+  const seasonMilestonePlansCount = seasonMilestonePlans.length;
+  const monthlyChitTargetPerMember = monthlyChitPlans.reduce((sum, p) => sum + p.amount, 0);
+
   const memberMatrix = members.map((member) => {
     let totalPaid = 0;
     let milestonePaid = 0;
     let monthlyChitPaid = 0;
+    let milestonePaidCount = 0;
+    let monthlyChitPaidCount = 0;
 
     const installmentsStatus = plans.map((plan) => {
       const payment = paymentMap.get(`${String(plan._id)}_${String(member._id)}`);
       const isPaid = payment?.status === "PAID";
       const paidAmt = isPaid ? (payment.amountPaid || 0) : 0;
+      const isChit = plan.planType === "MONTHLY_CHIT";
       if (isPaid) {
         totalPaid += paidAmt;
-        if (plan.planType === "MONTHLY_CHIT") {
+        if (isChit) {
           monthlyChitPaid += paidAmt;
+          monthlyChitPaidCount += 1;
         } else {
           milestonePaid += paidAmt;
+          milestonePaidCount += 1;
         }
       }
       return {
@@ -327,9 +338,24 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
       };
     });
 
-    const target = config.targetPerMember;
-    const remaining = Math.max(0, target - milestonePaid);
-    const progressPercent = target > 0 ? Math.min(100, Math.round((milestonePaid / target) * 100)) : 100;
+    // Milestone metrics (Regular Car Build)
+    const milestoneTarget = config.targetPerMember;
+    const milestoneRemaining = Math.max(0, milestoneTarget - milestonePaid);
+    const milestoneProgressPercent = milestoneTarget > 0 ? Math.min(100, Math.round((milestonePaid / milestoneTarget) * 100)) : 100;
+
+    // Monthly recurring metrics (Chit Fund)
+    const monthlyChitTarget = monthlyChitTargetPerMember;
+    const monthlyChitRemaining = Math.max(0, monthlyChitTarget - monthlyChitPaid);
+    const monthlyChitProgressPercent = monthlyChitTarget > 0
+      ? Math.min(100, Math.round((monthlyChitPaid / monthlyChitTarget) * 100))
+      : (monthlyChitPlansCount === 0 ? 100 : 0);
+
+    // Combined all metrics
+    const allTarget = milestoneTarget + monthlyChitTarget;
+    const allRemaining = Math.max(0, allTarget - totalPaid);
+    const allProgressPercent = allTarget > 0 ? Math.min(100, Math.round((totalPaid / allTarget) * 100)) : 100;
+    const allPaidCount = milestonePaidCount + monthlyChitPaidCount;
+    const allTotalCount = seasonMilestonePlansCount + monthlyChitPlansCount;
 
     return {
       memberId: String(member._id),
@@ -339,19 +365,46 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
       totalPaid,
       milestonePaid,
       monthlyChitPaid,
-      target,
-      remaining,
-      progressPercent,
+      target: milestoneTarget,
+      remaining: milestoneRemaining,
+      progressPercent: milestoneProgressPercent,
+      milestoneTarget,
+      milestoneRemaining,
+      milestoneProgressPercent,
+      milestonePaidCount,
+      milestoneTotalCount: seasonMilestonePlansCount,
+      monthlyChitTarget,
+      monthlyChitRemaining,
+      monthlyChitProgressPercent,
+      monthlyChitPaidCount,
+      monthlyChitTotalCount: monthlyChitPlansCount,
+      allTarget,
+      allRemaining,
+      allProgressPercent,
+      allPaidCount,
+      allTotalCount,
       installments: installmentsStatus,
     };
   });
 
-  const totalExpected = config.targetPerMember * members.length;
-  const totalCollected = memberMatrix.reduce((sum, m) => sum + m.milestonePaid, 0);
+  const milestoneTotalExpected = config.targetPerMember * members.length;
+  const milestoneTotalCollected = memberMatrix.reduce((sum, m) => sum + m.milestonePaid, 0);
+  const milestoneTotalPending = Math.max(0, milestoneTotalExpected - milestoneTotalCollected);
+  const milestoneCollectionPercentage = milestoneTotalExpected > 0 ? Math.round((milestoneTotalCollected / milestoneTotalExpected) * 100) : 0;
 
-  const monthlyChitPlans = plans.filter((p) => p.planType === "MONTHLY_CHIT");
   const monthlyChitTotalCollected = memberMatrix.reduce((sum, m) => sum + m.monthlyChitPaid, 0);
-  const monthlyChitTotalExpected = monthlyChitPlans.reduce((sum, p) => sum + p.amount, 0) * members.length;
+  const monthlyChitTotalExpected = monthlyChitTargetPerMember * members.length;
+  const monthlyChitTotalPending = Math.max(0, monthlyChitTotalExpected - monthlyChitTotalCollected);
+  const monthlyChitCollectionPercentage = monthlyChitTotalExpected > 0
+    ? Math.round((monthlyChitTotalCollected / monthlyChitTotalExpected) * 100)
+    : (monthlyChitPlansCount === 0 ? 100 : 0);
+
+  const grandTotalExpected = milestoneTotalExpected + monthlyChitTotalExpected;
+  const grandTotalCollected = milestoneTotalCollected + monthlyChitTotalCollected;
+  const grandTotalPending = Math.max(0, grandTotalExpected - grandTotalCollected);
+  const grandCollectionPercentage = grandTotalExpected > 0
+    ? Math.round((grandTotalCollected / grandTotalExpected) * 100)
+    : 0;
 
   res.json({
     config: {
@@ -359,13 +412,23 @@ export const getInstallmentsMatrix = asyncHandler(async (_req: Request, res: Res
       targetPerMember: config.targetPerMember,
       currency: config.currency,
       totalMembers: members.length,
-      totalExpected,
-      totalCollected,
-      totalPending: Math.max(0, totalExpected - totalCollected),
-      collectionPercentage: totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0,
+      totalExpected: milestoneTotalExpected,
+      totalCollected: milestoneTotalCollected,
+      totalPending: milestoneTotalPending,
+      collectionPercentage: milestoneCollectionPercentage,
+      milestoneTotalExpected,
+      milestoneTotalCollected,
+      milestoneTotalPending,
+      milestoneCollectionPercentage,
       monthlyChitTotalCollected,
       monthlyChitTotalExpected,
-      monthlyChitPlansCount: monthlyChitPlans.length,
+      monthlyChitTotalPending,
+      monthlyChitPlansCount,
+      monthlyChitCollectionPercentage,
+      grandTotalExpected,
+      grandTotalCollected,
+      grandTotalPending,
+      grandCollectionPercentage,
     },
     plans,
     matrix: memberMatrix,

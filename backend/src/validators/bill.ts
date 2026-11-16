@@ -2,7 +2,13 @@ import { z } from "zod";
 
 const dateString = z
   .string()
-  .refine((v) => v === "" || !Number.isNaN(new Date(v).getTime()), { message: "Invalid date" });
+  .refine(
+    (v) =>
+      v === "" ||
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.test(v.trim()) ||
+      !Number.isNaN(new Date(v).getTime()),
+    { message: "Invalid date" }
+  );
 
 const money = z.number().finite().nonnegative().max(100_000_000, "Amount is unrealistically large");
 
