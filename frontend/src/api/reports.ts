@@ -27,3 +27,8 @@ export async function regenerateReports(): Promise<{ regenerated: { subsystems: 
   const res = await api.post<{ regenerated: { subsystems: number; months: number } }>("/reports/regenerate");
   return res.data;
 }
+
+export async function getDriveFolderUrl(): Promise<string | null> {
+  const res = await api.get<{ folderId: string; url: string | null }>("/reports/drive-folder");
+  return res.data.url;
+}

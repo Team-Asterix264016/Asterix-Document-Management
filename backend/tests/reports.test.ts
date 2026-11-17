@@ -1,9 +1,12 @@
 import "./setup.js";
 import { describe, it, expect } from "vitest";
+import request from "supertest";
+import { createApp } from "../src/app.js";
 import { Bill } from "../src/models/Bill.js";
 import { Subsystem } from "../src/models/Subsystem.js";
 import { User } from "../src/models/User.js";
 import { generateMonthlyReportBuffer, generateSubsystemReportBuffer } from "../src/services/reportService.js";
+import { createUser } from "./helpers.js";
 import ExcelJS from "exceljs";
 
 async function seedBills() {
@@ -112,5 +115,17 @@ describe("Report generation", () => {
     await workbook.xlsx.load(buffer as never);
     // header/title block rows + 250 data rows
     expect(workbook.worksheets[0].rowCount).toBeGreaterThanOrEqual(250);
+  });
+
+  it("returns drive folder url when authenticated", async () => {
+    const app = createApp();
+    const { password } = await createUser({ username: "drive-user", password: "password123", role: "MEMBER" });
+    const loginRes = await request(app).post("/api/auth/login").send({ username: "drive-user", password });
+    const token = loginRes.body.token as string;
+
+    const res = await request(app).get("/api/reports/drive-folder").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("folderId");
+    expect(res.body).toHaveProperty("url");
   });
 });

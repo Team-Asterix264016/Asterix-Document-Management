@@ -15,10 +15,13 @@ import {
   Users,
   Boxes,
   Wallet,
+  FolderOpen,
+  ExternalLink,
 } from "lucide-react";
 import { AiAssistantModal } from "../ui/AiAssistantModal";
 import { LiveClock } from "./LiveClock";
 import { Spinner } from "../ui/Spinner";
+import { getDriveFolderUrl } from "../../api/reports";
 import type { User } from "../../types";
 
 const MEMBER_NAV = [
@@ -84,14 +87,35 @@ function initials(name?: string) {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
 
+const FALLBACK_DRIVE_URL =
+  (import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_URL as string | undefined) ||
+  "https://drive.google.com/drive/folders/1yiRiQYHqkANy5Ys3e_VKjlkct7iqVyQw";
+
 export function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [driveUrl, setDriveUrl] = useState<string>(FALLBACK_DRIVE_URL);
   const navItems = user?.role === "ADMIN" ? ADMIN_NAV : user?.role === "TREASURER" ? TREASURER_NAV : MEMBER_NAV;
   const title = pageTitle(location.pathname);
   const roleLabel = user ? ROLE_LABEL[user.role] : "";
+
+  useEffect(() => {
+    let active = true;
+    getDriveFolderUrl()
+      .then((url) => {
+        if (active && url) {
+          setDriveUrl(url);
+        }
+      })
+      .catch(() => {
+        // Fallback already in place
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     document.title = `${title} · Asterix Bill Manager`;
@@ -154,6 +178,25 @@ export function AppShell() {
                 )}
               </NavLink>
             ))}
+
+            <div className="my-2 border-t border-line/70" />
+
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="group relative flex items-center justify-between rounded-sm px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-surface hover:text-ink-900"
+              title="Open Google Drive root folder in a new tab"
+            >
+              <div className="flex items-center gap-2.5">
+                <FolderOpen
+                  className="h-4 w-4 shrink-0 text-ink-500 transition-colors group-hover:text-accent"
+                  strokeWidth={2}
+                />
+                <span>Drive Folder</span>
+              </div>
+              <ExternalLink className="h-3.5 w-3.5 text-ink-400 transition-colors group-hover:text-ink-600" />
+            </a>
           </nav>
 
           <div className="border-t border-line pt-4">
@@ -220,6 +263,17 @@ export function AppShell() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                <a
+                  href={driveUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Open Google Drive folder"
+                  title="Open Drive Folder"
+                  className="flex items-center gap-1 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink-700 transition-colors hover:text-ink-900"
+                >
+                  <FolderOpen className="h-3.5 w-3.5" strokeWidth={2} />
+                  <span>Drive</span>
+                </a>
                 <button
                   onClick={() => setIsAiModalOpen(true)}
                   className="flex items-center gap-1 rounded-md bg-accent-soft px-2.5 py-1.5 text-xs font-semibold text-accent"

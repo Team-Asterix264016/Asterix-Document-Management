@@ -8,6 +8,7 @@ router.use(requireAuth);
 
 router.get("/subsystems", reportController.listSubsystemReports);
 router.get("/monthly", reportController.listMonthlyReports);
+router.get("/drive-folder", reportController.getDriveFolder);
 router.post("/regenerate", requireRole("TREASURER", "ADMIN"), reportController.regenerateReports);
 
 export default router;
